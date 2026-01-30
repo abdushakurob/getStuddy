@@ -4,7 +4,9 @@ export interface IUser extends Document {
     email: string;
     name: string;
     avatarUrl?: string;
-    xp: number;
+    password?: string;
+
+    // Gamification Stats
     credits: number;
     streak: {
         count: number;
@@ -18,6 +20,7 @@ const UserSchema = new Schema<IUser>({
     email: { type: String, required: true, unique: true },
     name: { type: String, required: true },
     avatarUrl: { type: String },
+    password: { type: String, select: false },
 
     // Gamification Stats
     xp: { type: Number, default: 0 },

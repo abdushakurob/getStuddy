@@ -36,9 +36,16 @@ async function dbConnect() {
             bufferCommands: false,
         };
 
-        cached.promise = mongoose.connect(MONGODB_URI!, opts).then((mongoose) => {
-            return mongoose.connection;
-        });
+        try {
+            cached.promise = mongoose.connect(MONGODB_URI!, opts).then((mongoose) => {
+                return mongoose.connection;
+            });
+        } catch (error) {
+            console.error("❌ MongoDB Connection Error: Invalid URI format.");
+            console.error("If your password has special characters (like '@'), please URL Encode them.");
+            console.error("Example: 'p@ssword' -> 'p%40ssword'");
+            throw error;
+        }
     }
 
     try {

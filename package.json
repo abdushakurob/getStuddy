@@ -11,15 +11,17 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@uploadthing/react": "^7.3.3",
+    "bcryptjs": "^3.0.3",
     "framer-motion": "^12.29.2",
     "lucide-react": "^0.563.0",
     "mongoose": "^9.1.5",
     "next": "16.1.6",
-    "next-auth": "^4.24.13",
+    "next-auth": "^5.0.0-beta.30",
     "pdf-parse": "^2.4.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "uploadthing": "^7.7.4",
+    "zod": "^4.3.6",
     "zustand": "^5.0.10"
   },
   "devDependencies": {
