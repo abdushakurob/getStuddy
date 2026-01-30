@@ -4,265 +4,217 @@ import React from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
-    Zap, Brain, Star, Coins, Flame,
-    ArrowRight, Trophy, Swords, Sparkles,
-    Users, Target, MessageSquare
+    Zap, Brain, Target,
+    Map as MapIcon, Swords,
+    Bot, Fingerprint, Layers, CheckCircle, Smartphone,
+    Library, MessageCircle, TrendingUp
 } from 'lucide-react';
 
 export default function LandingPage() {
     return (
-        <div style={{ backgroundColor: 'var(--bg-app)', minHeight: '100vh', display: 'flex', flexDirection: 'column', color: 'var(--text-main)' }}>
+        <div className="bg-[#F3F4F6] text-[#1F2937] font-[family-name:var(--font-plus-jakarta)] overflow-x-hidden selection:bg-[#4C8233] selection:text-white">
 
-            {/* --- THE HUD --- */}
-            <nav style={{
-                padding: '20px 40px',
-                borderBottom: '4px solid var(--border-thick)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                backgroundColor: 'rgba(14, 18, 23, 0.9)',
-                backdropFilter: 'blur(12px)',
-                position: 'sticky',
-                top: 0,
-                zIndex: 1000
-            }}>
-                <div style={{ fontWeight: '900', fontSize: '28px', letterSpacing: '-2px', color: 'var(--brand-primary)' }}>STUDDY</div>
+            <NavBar />
 
-                <div style={{ display: 'flex', gap: '40px', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', gap: '32px' }}>
-                        <NavAnchor href="#meet-me">Meet Me</NavAnchor>
-                        <NavAnchor href="#the-plan">The Plan</NavAnchor>
-                        <NavAnchor href="#the-squad">The Squad</NavAnchor>
+            {/* --- HERO: THE PREMISE --- */}
+            <section className="min-h-[85vh] flex flex-col items-center justify-center px-6 text-center max-w-5xl mx-auto pt-20">
+                {/* <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="mb-8 p-4 bg-white rounded-2xl shadow-xl shadow-[#4C8233]/10 border border-[#4C8233]/20 inline-block"
+                >
+                    <div className="flex items-center gap-3 text-[#4C8233] font-bold">
+                        <Bot size={24} />
+                        <span>Meet Your New Study Partner</span>
                     </div>
-                    <div style={{ display: 'flex', gap: '20px', alignItems: 'center', borderLeft: '2px solid var(--border-thick)', paddingLeft: '32px' }}>
-                        <div style={{ display: 'flex', gap: '12px' }}>
-                            <Flame size={20} color="var(--color-streak)" fill="var(--color-streak)" />
-                            <Star size={20} color="var(--color-xp)" fill="var(--color-xp)" />
+                </motion.div> */}
+
+                <h1 className="text-5xl md:text-8xl font-black mb-8 leading-[0.95] tracking-tight text-[#1F2937]">
+                    Never Study <br />
+                    <span className="text-[#4C8233]">Alone Again.</span>
+                </h1>
+
+                <p className="text-xl md:text-2xl text-[#6B7280] max-w-2xl mx-auto mb-12 font-medium leading-relaxed">
+                    getStuddy is an intelligent agent that organizes your courses, explains tough concepts, and turns studying into a game you actually want to win.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-4 justify-center w-full max-w-md mx-auto">
+                    <Link href="/dashboard/upload" className="flex-1 py-4 bg-[#4C8233] text-white rounded-xl text-lg font-bold shadow-xl shadow-[#4C8233]/20 hover:bg-[#3D6A29] transition-all flex items-center justify-center gap-2">
+                        Get Started <Zap size={20} />
+                    </Link>
+                    <Link href="#features" className="flex-1 py-4 bg-white text-[#1F2937] border border-gray-200 rounded-xl text-lg font-bold hover:bg-gray-50 transition-all flex items-center justify-center">
+                        See Features
+                    </Link>
+                </div>
+            </section>
+
+
+            {/* --- ACT 1: STRUCTURE (The Courses) --- */}
+            <section id="features" className="py-32 px-6 bg-white border-y border-gray-100">
+                <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-20 items-center">
+                    <div>
+                        <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6">
+                            <Library size={32} />
                         </div>
-                        <Link href="/arena" className="btn btn-primary" style={{ padding: '10px 24px', fontSize: '14px' }}>PLAY NOW</Link>
+                        <h2 className="text-4xl md:text-5xl font-black mb-6 text-[#1F2937]">Organize Your Chaos.</h2>
+                        <p className="text-xl text-[#6B7280] leading-relaxed mb-8">
+                            Dump your PDFs, syllabi, and lecture slides into Studdy. The Agent instantly structures them into clear <strong>Courses</strong> and <strong>Timelines</strong>.
+                        </p>
+                        <ul className="space-y-4">
+                            <FeatureCheck text="Auto-generated Course Roadmaps" />
+                            <FeatureCheck text="Deadline Tracking" />
+                            <FeatureCheck text="All materials in one place" />
+                        </ul>
+                    </div>
+                    <div className="glass-panel p-8 rounded-[40px] shadow-2xl bg-gray-50 transform rotate-2 hover:rotate-0 transition-transform duration-500">
+                        {/* Course Card Mockup */}
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-4">
+                            <div className="flex justify-between items-center mb-4">
+                                <div className="font-bold text-lg">Biology 101</div>
+                                <span className="text-xs font-bold px-2 py-1 bg-green-100 text-green-700 rounded-lg">Active</span>
+                            </div>
+                            <div className="h-2 bg-gray-100 rounded-full w-full mb-2">
+                                <div className="h-full bg-green-500 w-2/3 rounded-full"></div>
+                            </div>
+                            <div className="text-xs text-gray-400 font-medium">65% Mastery • Exam in 14 days</div>
+                        </div>
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 opacity-60">
+                            <div className="flex justify-between items-center mb-4">
+                                <div className="font-bold text-lg">Art History</div>
+                                <span className="text-xs font-bold px-2 py-1 bg-gray-100 text-gray-500 rounded-lg">Paused</span>
+                            </div>
+                            <div className="h-2 bg-gray-100 rounded-full w-full mb-2">
+                                <div className="h-full bg-gray-300 w-1/4 rounded-full"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </nav>
+            </section>
 
-            <main>
-                {/* --- HERO: STUDDY INTRODUCES HIMSELF --- */}
-                <section style={{
-                    minHeight: '85vh',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '80px 24px',
-                    textAlign: 'center',
-                    position: 'relative'
-                }}>
-                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '800px', height: '800px', background: 'var(--glow-primary)', filter: 'blur(150px)', borderRadius: '50%', opacity: 0.3, zIndex: 0 }} />
-
-                    <div style={{ position: 'relative', zIndex: 1 }}>
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            style={{
-                                background: 'var(--bg-elevated)',
-                                padding: '8px 20px',
-                                border: '2px solid var(--brand-primary)',
-                                borderRadius: '100px',
-                                color: 'var(--brand-primary)',
-                                fontWeight: '900',
-                                fontSize: '12px',
-                                letterSpacing: '2px',
-                                marginBottom: '32px',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '8px'
-                            }}
-                        >
-                            <MessageSquare size={14} fill="var(--brand-primary)" /> INCOMING MESSAGE FROM STUDDY
-                        </motion.div>
-
-                        <h1 style={{ fontSize: 'clamp(50px, 12vw, 130px)', lineHeight: 0.85, marginBottom: '40px', textTransform: 'uppercase', fontWeight: 900, letterSpacing: '-4px' }}>
-                            YO! I'M <br /> <span className="text-gradient">STUDDY.</span>
-                        </h1>
-
-                        <p style={{ fontSize: '24px', color: 'var(--text-main)', maxWidth: '750px', margin: '0 auto 56px', lineHeight: 1.3, fontWeight: 700 }}>
-                            I stay up all night reading your slides so you don't have to. Drop your notes, and I’ll map out exactly how we win your next exam.
-                        </p>
-
-                        <div style={{ display: 'flex', gap: '24px', justifyContent: 'center' }}>
-                            <Link href="/arena" className="btn btn-primary animate-pulse-glow" style={{ fontSize: '22px', padding: '24px 56px' }}>
-                                LET'S GET IT
-                            </Link>
-                        </div>
-                    </div>
-                </section>
-
-                {/* --- THE BUDDY: "I'VE GOT YOU" --- */}
-                <section id="meet-me" style={{ padding: '100px 24px', background: 'var(--bg-surface)', borderTop: '4px solid var(--border-thick)' }}>
-                    <div className="section-container" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '80px', alignItems: 'center' }}>
-                        <div>
-                            <div style={{ color: 'var(--brand-primary)', fontWeight: '900', fontSize: '14px', marginBottom: '16px', letterSpacing: '2px' }}>PARTNER UP</div>
-                            <h2 style={{ fontSize: '64px', fontWeight: 900, marginBottom: '32px', textTransform: 'uppercase', lineHeight: 1 }}>I'm the brain <br /> in the background.</h2>
-                            <p style={{ fontSize: '20px', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '40px' }}>
-                                Look, studying alone sucks. That’s why I’m here. You give me the material, and I’ll break it down into something that actually makes sense. I don’t just answer questions; I lead the way.
-                            </p>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
-                                <FeatureItem icon={<Brain size={24} />} title="I Never Sleep" text="I process your entire syllabus in seconds." />
-                                <FeatureItem icon={<Target size={24} />} title="I Spot Weakness" text="I know exactly what you’re missing." />
-                            </div>
-                        </div>
-                        <div className="card" style={{ padding: '40px', background: 'var(--bg-app)', borderStyle: 'dashed', position: 'relative' }}>
-                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '32px' }}>
-                                <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: 'var(--brand-primary)' }} />
-                                <span style={{ fontWeight: '900', fontSize: '14px' }}>STUDDY: "Dw, I just scanned the PDF. Topic 3 is the heavy one. I've got a plan."</span>
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                <div style={{ height: '40px', width: '100%', background: 'var(--bg-elevated)', borderRadius: '8px', border: '2px solid var(--border-thick)' }} />
-                                <div style={{ height: '40px', width: '80%', background: 'var(--bg-elevated)', borderRadius: '8px', border: '2px solid var(--border-thick)' }} />
-                                <div style={{ height: '40px', width: '90%', background: 'var(--brand-primary)', borderRadius: '8px', border: '2px solid var(--border-thick)', marginTop: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000', fontWeight: '900', fontSize: '14px' }}>VIEW MY STUDY MAP</div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                {/* --- THE PATH: "WE LEVEL UP" --- */}
-                <section id="the-plan" style={{ padding: '120px 24px' }}>
-                    <div className="section-container" style={{ textAlign: 'center' }}>
-                        <h2 style={{ fontSize: '72px', fontWeight: 900, marginBottom: '32px', textTransform: 'uppercase' }}>CHASE THAT MASTERY.</h2>
-                        <p style={{ fontSize: '22px', color: 'var(--text-muted)', maxWidth: '800px', margin: '0 auto 80px' }}>
-                            I’m not just a tool; I’m your coach. Every session we finish adds to your XP. The more you put in, the higher we climb.
-                        </p>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '32px' }}>
-                            <GameCard
-                                icon={<Flame size={48} color="var(--color-streak)" fill="var(--color-streak)" />}
-                                title="Feed My Fire"
-                                desc="Show up every day and I’ll multiply your progress. If you’re consistent, I’m twice as effective."
-                            />
-                            <GameCard
-                                icon={<Star size={48} color="var(--color-xp)" fill="var(--color-xp)" />}
-                                title="Climb the Ranks"
-                                desc="Every time you get a concept right, you earn XP. Let's see how fast we can hit Level 10."
-                            />
-                            <GameCard
-                                icon={<Coins size={48} color="var(--color-credit)" fill="var(--color-credit)" />}
-                                title="Score Power-Ups"
-                                desc="Rack up credits and use them for when things get real. I'll drop mock exams and deep dives on command."
-                            />
-                        </div>
-                    </div>
-                </section>
-
-                {/* --- THE SQUAD: "JOIN THE FRONT LINES" --- */}
-                <section id="the-squad" style={{ padding: '120px 24px', background: 'var(--bg-surface)', borderTop: '4px solid var(--border-thick)' }}>
-                    <div className="section-container" style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '80px', alignItems: 'center' }}>
-                        <div>
-                            <h2 style={{ fontSize: '64px', fontWeight: 900, marginBottom: '32px', textTransform: 'uppercase' }}>JOIN THE SQUAD</h2>
-                            <p style={{ fontSize: '20px', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '40px' }}>
-                                You’re not the only one fighting for that ‘A’. Thousands of players are in the Arena right now. Hop in and show everyone who the top scholar is.
-                            </p>
-                            <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }}>
-                                <div style={{ display: 'flex', marginLeft: '12px' }}>
-                                    {[1, 2, 3, 4].map(i => (
-                                        <div key={i} style={{ width: '56px', height: '56px', borderRadius: '50%', border: '4px solid var(--border-thick)', background: 'var(--bg-elevated)', marginLeft: '-16px', overflow: 'hidden' }}>
-                                            <div style={{ width: '100%', height: '100%', background: 'linear-gradient(45deg, var(--bg-elevated), var(--border-thick))' }} />
-                                        </div>
-                                    ))}
+            {/* --- ACT 2: THE COMPANION (Chat/Help) --- */}
+            <section className="py-32 px-6 bg-[#F3F4F6]">
+                <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-20 items-center md:flex-row-reverse">
+                    <div className="order-last md:order-first">
+                        {/* Chat Mockup */}
+                        <div className="glass-panel p-8 rounded-[40px] shadow-2xl bg-white relative">
+                            <div className="space-y-6">
+                                {/* Studdy Msg */}
+                                <div className="flex gap-4">
+                                    <div className="w-10 h-10 rounded-xl bg-[#4C8233] flex items-center justify-center text-white font-bold text-xs shrink-0">S</div>
+                                    <div className="bg-gray-100 p-4 rounded-2xl rounded-tl-none text-sm font-medium text-gray-800">
+                                        Wait, don't move on yet. You missed the key point about <strong>Mitochondria</strong>. Let me break it down simply...
+                                    </div>
                                 </div>
-                                <span style={{ fontWeight: '900', fontSize: '18px' }}>+ 2,400 crushing sessions daily</span>
-                            </div>
-                        </div>
-                        <div className="card" style={{ padding: '32px', boxShadow: '12px 12px 0 var(--border-thick)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
-                                <span style={{ fontWeight: '900', color: 'var(--brand-primary)' }}>GLOBAL ARENA</span>
-                                <Trophy size={20} color="var(--color-credit)" />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                <MiniPlayerRow rank={1} name="Dave_A" level={42} />
-                                <MiniPlayerRow rank={2} name="Sarah_S" level={38} />
-                                <MiniPlayerRow rank={3} name="You" level={0} isUser />
-                                <MiniPlayerRow rank={4} name="Chidi_X" level={29} />
+                                {/* User Msg */}
+                                <div className="flex flex-row-reverse gap-4">
+                                    <div className="w-10 h-10 rounded-xl bg-gray-200 flex items-center justify-center shrink-0">You</div>
+                                    <div className="bg-[#1F2937] text-white p-4 rounded-2xl rounded-tr-none text-sm font-medium">
+                                        Oh, I thought I got it. Can you give me an analogy?
+                                    </div>
+                                </div>
+                                {/* Analogy Card */}
+                                <div className="p-4 border border-[#4C8233]/30 bg-[#E8F5E9] rounded-2xl">
+                                    <div className="text-xs font-bold text-[#4C8233] uppercase mb-2">💡 Insight</div>
+                                    <p className="text-sm font-bold text-[#1F2937]">Think of Mitochondria as the Power Plant of a city...</p>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </section>
-
-                {/* --- JOIN THE ARENA --- */}
-                <section style={{
-                    padding: '160px 24px',
-                    textAlign: 'center',
-                    background: 'linear-gradient(to bottom, transparent, var(--glow-primary))',
-                    borderTop: '4px solid var(--border-thick)'
-                }}>
-                    <div className="section-container">
-                        <h2 style={{ fontSize: 'clamp(50px, 10vw, 100px)', fontWeight: 900, marginBottom: '40px', textTransform: 'uppercase', letterSpacing: '-2px' }}>
-                            READY TO WIN?
-                        </h2>
-                        <Link href="/arena" className="btn btn-primary" style={{ fontSize: '28px', padding: '28px 72px' }}>
-                            LET'S START, STUDDY
-                        </Link>
-                    </div>
-                </section>
-            </main>
-
-            <footer style={{ padding: '80px 40px', borderTop: '4px solid var(--border-thick)', backgroundColor: 'var(--bg-surface)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: '1200px', margin: '0 auto' }}>
-                    <div style={{ fontWeight: '900', fontSize: '32px', letterSpacing: '-2px', color: 'var(--brand-primary)' }}>STUDDY</div>
-                    <div style={{ display: 'flex', gap: '40px' }}>
-                        <NavAnchor href="#">Twitter</NavAnchor>
-                        <NavAnchor href="#">Discord</NavAnchor>
+                    <div>
+                        <div className="w-14 h-14 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-6">
+                            <MessageCircle size={32} />
+                        </div>
+                        <h2 className="text-4xl md:text-5xl font-black mb-6 text-[#1F2937]">Your 24/7 Tutor.</h2>
+                        <p className="text-xl text-[#6B7280] leading-relaxed mb-8">
+                            Stuck on a concept? Just ask. Imagine a tutor who knows your entire syllabus by heart and is always awake.
+                        </p>
+                        <ul className="space-y-4">
+                            <FeatureCheck text="Instant Explanations (ELI5)" />
+                            <FeatureCheck text="Socratic Questioning" />
+                            <FeatureCheck text="Context-Aware Answers" />
+                        </ul>
                     </div>
                 </div>
-            </footer>
+            </section>
+
+            {/* --- ACT 3: THE GAME (Fun) --- */}
+            <section className="py-32 px-6 bg-[#111827] text-white rounded-[60px] mx-4 mb-20 relative overflow-hidden">
+                {/* Background Glow */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#4C8233] opacity-20 blur-[120px] rounded-full pointer-events-none"></div>
+
+                <div className="relative z-10 max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-20 items-center">
+                    <div>
+                        <div className="w-14 h-14 bg-gray-800 text-[#4C8233] rounded-2xl flex items-center justify-center mb-6 border border-gray-700">
+                            <TrendingUp size={32} />
+                        </div>
+                        <h2 className="text-4xl md:text-5xl font-black mb-6">Addictively Fun.</h2>
+                        <p className="text-xl text-gray-400 leading-relaxed mb-8">
+                            We turned studying into an RPG. Earn XP, keep your streak alive, and watch your Companion evolve as you get smarter.
+                        </p>
+                        <ul className="space-y-4">
+                            <FeatureCheck text="Daily Streak Battles" dark />
+                            <FeatureCheck text="Evolving Avatar System" dark />
+                            <FeatureCheck text="Global Leaderboards" dark />
+                        </ul>
+                    </div>
+                    <div className="flex justify-center">
+                        {/* Evolution Card */}
+                        <div className="relative w-80 h-96 bg-gray-900 border border-gray-700 rounded-[40px] flex flex-col items-center justify-center shadow-2xl">
+                            <div className="absolute top-6 right-6 px-3 py-1 bg-[#4C8233] text-white text-xs font-bold rounded-full">LVL 4</div>
+
+                            <div className="relative mb-8">
+                                <div className="w-40 h-40 bg-gradient-to-b from-[#4C8233] to-[#2F4F2F] rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(76,130,51,0.6)] animate-pulse-slow">
+                                    <Swords size={60} className="text-white" />
+                                </div>
+                            </div>
+
+                            <h3 className="text-2xl font-black mb-2">Scholar Class</h3>
+                            <div className="text-gray-500 text-sm font-bold mb-6">450 / 1000 XP</div>
+
+                            <div className="w-4/5 h-3 bg-gray-800 rounded-full overflow-hidden">
+                                <div className="h-full w-[45%] bg-[#4C8233]"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* --- FINAL CTA --- */}
+            <section className="py-20 text-center">
+                <h2 className="text-5xl font-black mb-8 text-[#1F2937]">Ready to Level Up?</h2>
+                <Link href="/dashboard/upload" className="inline-block px-12 py-5 bg-[#4C8233] text-white rounded-2xl text-xl font-bold shadow-xl hover:scale-105 transition-transform">
+                    Create Free Account
+                </Link>
+            </section>
         </div>
     );
 }
 
-// --- ACCESSORIES ---
+// --- SUBCOMPONENTS ---
 
-function NavAnchor({ href, children }: { href: string, children: React.ReactNode }) {
+function FeatureCheck({ text, dark }: { text: string, dark?: boolean }) {
     return (
-        <a href={href} style={{ fontWeight: '900', textDecoration: 'none', color: 'var(--text-main)', fontSize: '14px', letterSpacing: '1px', textTransform: 'uppercase' }}>
-            {children}
-        </a>
-    );
-}
-
-function FeatureItem({ icon, title, text }: { icon: React.ReactNode, title: string, text: string }) {
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ color: 'var(--brand-primary)' }}>{icon}</div>
-            <h4 style={{ fontWeight: '900', fontSize: '18px', textTransform: 'uppercase' }}>{title}</h4>
-            <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: 1.5 }}>{text}</p>
+        <div className="flex items-center gap-3 font-medium text-lg">
+            <CheckCircle size={20} className={dark ? "text-[#4C8233]" : "text-green-600"} />
+            <span className={dark ? "text-gray-300" : "text-gray-600"}>{text}</span>
         </div>
     );
 }
 
-function GameCard({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
+function NavBar() {
     return (
-        <div className="card" style={{ padding: '40px', textAlign: 'center' }}>
-            <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'center' }}>{icon}</div>
-            <h3 style={{ fontSize: '24px', fontWeight: '900', marginBottom: '16px', textTransform: 'uppercase' }}>{title}</h3>
-            <p style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>{desc}</p>
-        </div>
-    );
-}
-
-function MiniPlayerRow({ rank, name, level, isUser = false }: { rank: number, name: string, level: number, isUser?: boolean }) {
-    return (
-        <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            padding: '12px 16px',
-            background: isUser ? 'var(--glow-primary)' : 'var(--bg-elevated)',
-            borderRadius: '12px',
-            border: isUser ? '2px solid var(--brand-primary)' : '2px solid var(--border-thick)',
-            boxShadow: isUser ? '0 0 15px var(--glow-primary)' : 'none'
-        }}>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <span style={{ fontWeight: '900', color: 'var(--text-muted)', width: '20px' }}>{rank}</span>
-                <span style={{ fontWeight: '800' }}>{name}</span>
+        <nav className="fixed top-0 left-0 right-0 z-50 px-8 py-6 flex justify-between items-center pointer-events-none">
+            <div className="glass-panel px-5 py-2.5 rounded-xl flex items-center gap-3 pointer-events-auto shadow-sm">
+                <span className="font-extrabold text-xl tracking-tight text-[#2F4F2F]">getStuddy</span>
             </div>
-            <span style={{ fontWeight: '900', color: 'var(--color-xp)' }}>LV. {level}</span>
-        </div>
-    );
+            <div className="flex gap-4 pointer-events-auto">
+                <Link href="/dashboard" className="px-5 py-2.5 glass-panel text-[#2F4F2F] font-bold hover:bg-white rounded-xl transition-all text-sm shadow-sm">
+                    Log In
+                </Link>
+                <Link href="/dashboard/upload" className="px-5 py-2.5 bg-[#1F2937] text-white font-bold rounded-xl shadow-lg hover:scale-105 transition-all text-sm">
+                    Launch App
+                </Link>
+            </div>
+        </nav>
+    )
 }
