@@ -1,10 +1,11 @@
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { loadPdfFromUrl } from "@/lib/pdf-loader";
-import { analyzeDocument } from "@/lib/gemini"; // We will implement/fix this later
+import { analyzeDocument } from "@/lib/gemini";
 import dbConnect from "@/lib/db";
 import Resource from "@/models/Resource";
-import { auth } from "@/auth"; // Real Auth
+import { auth } from "@/auth";
 import { z } from "zod";
+import mongoose from 'mongoose';
 
 const f = createUploadthing();
 
@@ -30,50 +31,70 @@ export const ourFileRouter = {
         .onUploadComplete(async ({ metadata, file }) => {
             console.log("Upload Complete. Metadata:", metadata);
 
-            // Parse context string back to ObjectId-compatible value
-            // "null" string -> null value
-            // "abc" string -> "abc" value
-            const finalFolderId = metadata.folderContext === "null" ? null : metadata.folderContext;
+            // Explicit ObjectId Casting
+            let finalFolderId = null;
+            if (metadata.folderContext && metadata.folderContext !== "null") {
+                try {
+                    finalFolderId = new mongoose.Types.ObjectId(metadata.folderContext);
+                } catch (e) {
+                    console.error("Invalid Folder ID format:", metadata.folderContext);
+                    finalFolderId = null;
+                }
+            }
 
             console.log(`[onUploadComplete] Final Folder ID Strategy: '${metadata.folderContext}' ->`, finalFolderId);
 
             try {
                 await dbConnect();
 
-                // 1. Download & Parse PDF
-                console.log("Downloading and parsing PDF...");
-                const text = await loadPdfFromUrl(file.url);
-                console.log("PDF parsed. Text length:", text.length);
+                // 1. Prepare Data
+                let text = "";
+                let summary = "Pending analysis...";
+                let topics: any[] = [];
+                let status = "ready";
 
-                // 2. Analyze with Gemini
-                console.log("Analyzing with Gemini...");
-                const analysis = await analyzeDocument(text);
+                // 2. Try Parsing (Fail-Safe)
+                try {
+                    console.log("Downloading and parsing PDF...");
+                    text = await loadPdfFromUrl(file.url);
+                    console.log("PDF parsed. Text length:", text.length);
 
-                // 3. Save Resource with Intel
+                    console.log("Analyzing with Gemini...");
+                    const analysis = await analyzeDocument(text);
+                    if (analysis) {
+                        summary = analysis.summary || summary;
+                        topics = analysis.topics || [];
+                    }
+                } catch (parseError) {
+                    console.error("PDF Parsing/Analysis Failed:", parseError);
+                    summary = "Analysis failed. Please try again.";
+                    status = "error";
+                    text = "Extraction failed.";
+                }
+
+                // 3. Save Resource (ALWAYS)
+                console.log(`[onUploadComplete] Saving Resource. Folder: ${finalFolderId}, Status: ${status}`);
                 const resource = await Resource.create({
                     courseId: metadata.courseId,
-                    folderId: finalFolderId, // Use the parsed value
+                    folderId: finalFolderId,
                     userId: metadata.userId,
                     title: file.name,
                     fileUrl: file.url,
-                    extractedText: text, // Store full text for RAG later
-                    summary: analysis?.summary || "No summary generated",
-                    status: 'ready'
+                    extractedText: text,
+                    summary: summary,
+                    status: status as any
                 });
                 console.log("Resource created:", resource._id);
 
-                // 4. Create Topics (The Plan Blocks)
-                // Note: We need a Topic model or just save to Course? 
-                // For now, let's assume we might not have Topic model yet, check imports.
-                // Re-checking imports... YES we removed Topic import in previous step.
-                // Let's just store topics in the Resource for now, or log them.
-                if (analysis?.topics) {
-                    console.log("Identified Topics:", analysis.topics);
-                    // TODO: Save these to a 'StudyPlan' or 'Topic' collection/field
+                // 4. Trace Topics
+                if (topics.length > 0) {
+                    console.log("Identified Topics:", topics);
                 }
 
             } catch (error) {
-                console.error("Upload Warning:", error);
+                console.error("Critical Upload Error:", error);
+                // Throwing ensures the client sees 'Failed'
+                throw error;
             }
 
             return { uploadedBy: metadata.userId };

@@ -15,6 +15,7 @@ export interface CourseData {
     description?: string;
     color: string;
     resourceCount?: number;
+    folderCount?: number;
 }
 
 export interface FolderData {
@@ -40,12 +41,22 @@ export async function getCourses(): Promise<CourseData[]> {
     await dbConnect();
     const courses = await Course.find({ userId: session.user.id }).sort({ createdAt: -1 }).lean();
 
-    return courses.map((c: any) => ({
-        id: c._id.toString(),
-        title: c.title,
-        description: c.description,
-        color: c.color,
+    // Aggregate counts safely
+    const coursesWithCounts = await Promise.all(courses.map(async (c: any) => {
+        const folderCount = await Folder.countDocuments({ courseId: c._id });
+        const resourceCount = await Resource.countDocuments({ courseId: c._id });
+
+        return {
+            id: c._id.toString(),
+            title: c.title,
+            description: c.description,
+            color: c.color,
+            folderCount,    // Return actual count
+            resourceCount   // Return actual count
+        };
     }));
+
+    return coursesWithCounts;
 }
 
 export async function createCourse(formData: FormData) {
