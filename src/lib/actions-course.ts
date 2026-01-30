@@ -99,8 +99,15 @@ export async function getCourseContent(courseId: string, folderId: string | null
     await dbConnect();
 
     // Verify Course
+    console.log(`[getCourseContent] Fetching: courseId=${courseId}, userId=${session.user.id}`);
     const course = await Course.findOne({ _id: courseId, userId: session.user.id }).lean();
-    if (!course) throw new Error('Course not found');
+
+    if (!course) {
+        console.error(`[getCourseContent] Course not found! Query: { _id: ${courseId}, userId: ${session.user.id} }`);
+        const allCourses = await Course.find({ userId: session.user.id }).select('_id title').lean();
+        console.log(`[getCourseContent] Available courses for user:`, allCourses);
+        throw new Error('Course not found');
+    }
 
     // Fetch Folders in this level
     const folders = await Folder.find({
@@ -110,11 +117,13 @@ export async function getCourseContent(courseId: string, folderId: string | null
     }).sort({ name: 1 }).lean();
 
     // Fetch Resources in this level
+    console.log(`[getCourseContent] Fetching resources for courseId=${courseId}, folderId=${folderId}`);
     const resources = await Resource.find({
         courseId,
         userId: session.user.id,
         folderId: folderId || null // Crucial: match null parent for root resources
     }).sort({ createdAt: -1 }).lean();
+    console.log(`[getCourseContent] Found ${resources.length} resources.`);
 
     // Build Breadcrumbs (Navigation)
     let navigation = [];

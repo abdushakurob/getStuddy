@@ -1,12 +1,14 @@
-import { PDFParse } from 'pdf-parse';
-
 export async function loadPdfFromUrl(url: string): Promise<string> {
     try {
+        console.log("[pdf-loader] Fetching PDF:", url);
         const response = await fetch(url);
         const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
 
-        const parser = new PDFParse({ data: arrayBuffer });
-        const data = await parser.getText();
+        // Dynamic require to avoid ESM static analysis issues
+        const pdf = require('pdf-parse');
+        const data = await pdf(buffer);
+        console.log("[pdf-loader] Parsed successfully. Length:", data.text.length);
         return data.text;
     } catch (error) {
         console.error("Error parsing PDF:", error);

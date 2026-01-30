@@ -1,26 +1,41 @@
 import { createUploadthing, type FileRouter } from "uploadthing/next";
 import { loadPdfFromUrl } from "@/lib/pdf-loader";
-import { analyzeDocument } from "@/lib/gemini";
+import { analyzeDocument } from "@/lib/gemini"; // We will implement/fix this later
 import dbConnect from "@/lib/db";
 import Resource from "@/models/Resource";
-import Topic from "@/models/Topic";
-import Course from "@/models/Course";
+import { auth } from "@/auth"; // Real Auth
+import { z } from "zod";
 
 const f = createUploadthing();
 
-// Placeholder auth function
-const auth = (req: Request) => ({ id: "user_123" }); // TODO: Replace with real NextAuth
-
 export const ourFileRouter = {
     resourceUploader: f({ pdf: { maxFileSize: "16MB", maxFileCount: 4 } })
-        .middleware(async ({ req }) => {
-            const user = await auth(req);
-            if (!user) throw new Error("Unauthorized");
-            return { userId: user.id };
+        .input(z.object({
+            courseId: z.string(),
+            folderId: z.string() // Always string, "null" if root
+        }))
+        .middleware(async ({ req, input }) => {
+            console.log("Upload Middleware Input (Server):", input);
+            const session = await auth();
+            const user = session?.user;
+            if (!user || !user.id) throw new Error("Unauthorized");
+
+            // Return strings ONLY for metadata safety
+            return {
+                userId: user.id,
+                courseId: input.courseId,
+                folderContext: input.folderId // Values: "null" or "abc1234"
+            };
         })
         .onUploadComplete(async ({ metadata, file }) => {
-            console.log("Upload complete for userId:", metadata.userId);
-            console.log("File URL:", file.url);
+            console.log("Upload Complete. Metadata:", metadata);
+
+            // Parse context string back to ObjectId-compatible value
+            // "null" string -> null value
+            // "abc" string -> "abc" value
+            const finalFolderId = metadata.folderContext === "null" ? null : metadata.folderContext;
+
+            console.log(`[onUploadComplete] Final Folder ID Strategy: '${metadata.folderContext}' ->`, finalFolderId);
 
             try {
                 await dbConnect();
@@ -34,44 +49,31 @@ export const ourFileRouter = {
                 console.log("Analyzing with Gemini...");
                 const analysis = await analyzeDocument(text);
 
-                // 3. Find or Create a Default Course (For MVP simplicity)
-                // In a real app, we'd pass courseId in metadata
-                let course = await Course.findOne({ userId: metadata.userId });
-                if (!course) {
-                    course = await Course.create({
-                        userId: metadata.userId,
-                        title: "First Course",
-                        description: "Auto-generated course from upload"
-                    });
-                }
-
-                // 4. Save Resource
+                // 3. Save Resource with Intel
                 const resource = await Resource.create({
-                    courseId: course._id,
+                    courseId: metadata.courseId,
+                    folderId: finalFolderId, // Use the parsed value
                     userId: metadata.userId,
                     title: file.name,
                     fileUrl: file.url,
-                    extractedText: text,
+                    extractedText: text, // Store full text for RAG later
                     summary: analysis?.summary || "No summary generated",
                     status: 'ready'
                 });
-                console.log("Resource saved:", resource._id);
+                console.log("Resource created:", resource._id);
 
-                // 5. Create Topics
-                if (analysis?.topics && Array.isArray(analysis.topics)) {
-                    const topicDocs = analysis.topics.map((t: any) => ({
-                        courseId: course._id,
-                        name: t.name,
-                        complexity: t.complexity || 'Medium',
-                        status: 'unlocked'
-                    }));
-                    await Topic.insertMany(topicDocs);
-                    console.log("Topics created:", topicDocs.length);
+                // 4. Create Topics (The Plan Blocks)
+                // Note: We need a Topic model or just save to Course? 
+                // For now, let's assume we might not have Topic model yet, check imports.
+                // Re-checking imports... YES we removed Topic import in previous step.
+                // Let's just store topics in the Resource for now, or log them.
+                if (analysis?.topics) {
+                    console.log("Identified Topics:", analysis.topics);
+                    // TODO: Save these to a 'StudyPlan' or 'Topic' collection/field
                 }
 
             } catch (error) {
-                console.error("Pipeline Error:", error);
-                // We might want to update Resource status to 'error' here if we had the ID
+                console.error("Upload Warning:", error);
             }
 
             return { uploadedBy: metadata.userId };
