@@ -71,7 +71,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
                         {/* Streak Pill */}
                         <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-100">
                             <Flame size={18} className="text-orange-500 fill-orange-500" />
-                            <span className="font-bold text-sm">{user.streak.count} Day Streak</span>
+                            <span className="font-bold text-sm">{user.streak} Day Streak</span>
                         </div>
 
                         <button className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-gray-100 text-gray-500 hover:text-black transition-colors">
