@@ -7,6 +7,7 @@ export interface IUser extends Document {
     password?: string;
 
     // Gamification Stats
+    xp: number;
     credits: number;
     streak: {
         count: number;

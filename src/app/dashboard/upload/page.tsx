@@ -34,6 +34,7 @@ export default function UploadPage() {
                         <div className="relative bg-white rounded-[32px] overflow-hidden shadow-xl">
                             <UploadDropzone
                                 endpoint="resourceUploader"
+                                input={{}}
                                 onClientUploadComplete={(res) => {
                                     console.log("Files: ", res);
                                     setIsProcessing(true);
