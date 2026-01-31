@@ -4,217 +4,392 @@ import React from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
-    Zap, Brain, Target,
-    Map as MapIcon, Swords,
-    Bot, Fingerprint, Layers, CheckCircle, Smartphone,
-    Library, MessageCircle, TrendingUp
+    Zap, Library, MessageCircle, TrendingUp,
+    CheckCircle, ArrowRight, LayoutGrid, Clock, Trophy, Heart,
+    FlameIcon
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export default function LandingPage() {
     return (
-        <div className="bg-[#F3F4F6] text-[#1F2937] font-[family-name:var(--font-plus-jakarta)] overflow-x-hidden selection:bg-[#4C8233] selection:text-white">
+        <div className="bg-[var(--bg-app)] min-h-screen text-[var(--text-main)] font-[family-name:var(--font-plus-jakarta)] overflow-x-hidden selection:bg-[var(--brand-primary)] selection:text-white">
 
             <NavBar />
 
-            {/* --- HERO: THE PREMISE --- */}
-            <section className="min-h-[85vh] flex flex-col items-center justify-center px-6 text-center max-w-5xl mx-auto pt-20">
-                {/* <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="mb-8 p-4 bg-white rounded-2xl shadow-xl shadow-[#4C8233]/10 border border-[#4C8233]/20 inline-block"
+            {/* --- HERO: MEET YOUR AI STUDY BUDDY --- */}
+            <section className="relative min-h-[90vh] flex flex-col items-center justify-center px-6 text-center max-w-6xl mx-auto pt-32 pb-20">
+
+                {/* Background Blobs (Army Green Tint) */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-[var(--brand-primary)] opacity-10 rounded-full blur-[120px] -z-10" />
+
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6 }}
+                    className="mb-8"
                 >
-                    <div className="flex items-center gap-3 text-[#4C8233] font-bold">
-                        <Bot size={24} />
-                        <span>Meet Your New Study Partner</span>
-                    </div>
-                </motion.div> */}
+                    <span className="px-4 py-1.5 glass-panel rounded-full text-sm font-bold text-[var(--brand-primary)] inline-flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-[var(--brand-primary)] animate-pulse" />
+                        The AI Companion for Students
+                    </span>
+                </motion.div>
 
-                <h1 className="text-5xl md:text-8xl font-black mb-8 leading-[0.95] tracking-tight text-[#1F2937]">
-                    Never Study <br />
-                    <span className="text-[#4C8233]">Alone Again.</span>
-                </h1>
+                <motion.h1
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.1 }}
+                    className="text-6xl md:text-8xl font-black mb-8 leading-[1.0] tracking-tight text-[var(--text-main)]"
+                >
+                    Meet Your <br />
+                    <span className="text-[var(--brand-primary)]">AI Study Buddy</span>
+                </motion.h1>
 
-                <p className="text-xl md:text-2xl text-[#6B7280] max-w-2xl mx-auto mb-12 font-medium leading-relaxed">
-                    getStuddy is an intelligent agent that organizes your courses, explains tough concepts, and turns studying into a game you actually want to win.
-                </p>
+                <motion.p
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.2 }}
+                    className="text-xl md:text-2xl text-[var(--text-muted)] max-w-2xl mx-auto mb-12 font-medium leading-relaxed"
+                >
+                    goStuddy reads your course materials, collaborates with you on study plans, and keeps you consistent—adapting to how you actually learn.
+                </motion.p>
 
-                <div className="flex flex-col sm:flex-row gap-4 justify-center w-full max-w-md mx-auto">
-                    <Link href="/dashboard/upload" className="flex-1 py-4 bg-[#4C8233] text-white rounded-xl text-lg font-bold shadow-xl shadow-[#4C8233]/20 hover:bg-[#3D6A29] transition-all flex items-center justify-center gap-2">
-                        Get Started <Zap size={20} />
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6, delay: 0.3 }}
+                    className="flex flex-col sm:flex-row gap-4 justify-center w-full max-w-sm mx-auto z-20"
+                >
+                    <Link href="/dashboard/upload" className="flex-1 btn-primary flex items-center justify-center gap-2 group">
+                        Get Started Free <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                     </Link>
-                    <Link href="#features" className="flex-1 py-4 bg-white text-[#1F2937] border border-gray-200 rounded-xl text-lg font-bold hover:bg-gray-50 transition-all flex items-center justify-center">
-                        See Features
+                    <Link href="#features" className="flex-1 btn-secondary flex items-center justify-center">
+                        Watch Demo
                     </Link>
-                </div>
-            </section>
+                </motion.div>
 
-
-            {/* --- ACT 1: STRUCTURE (The Courses) --- */}
-            <section id="features" className="py-32 px-6 bg-white border-y border-gray-100">
-                <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-20 items-center">
-                    <div>
-                        <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6">
-                            <Library size={32} />
-                        </div>
-                        <h2 className="text-4xl md:text-5xl font-black mb-6 text-[#1F2937]">Organize Your Chaos.</h2>
-                        <p className="text-xl text-[#6B7280] leading-relaxed mb-8">
-                            Dump your PDFs, syllabi, and lecture slides into Studdy. The Agent instantly structures them into clear <strong>Courses</strong> and <strong>Timelines</strong>.
-                        </p>
-                        <ul className="space-y-4">
-                            <FeatureCheck text="Auto-generated Course Roadmaps" />
-                            <FeatureCheck text="Deadline Tracking" />
-                            <FeatureCheck text="All materials in one place" />
-                        </ul>
-                    </div>
-                    <div className="glass-panel p-8 rounded-[40px] shadow-2xl bg-gray-50 transform rotate-2 hover:rotate-0 transition-transform duration-500">
-                        {/* Course Card Mockup */}
-                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 mb-4">
-                            <div className="flex justify-between items-center mb-4">
-                                <div className="font-bold text-lg">Biology 101</div>
-                                <span className="text-xs font-bold px-2 py-1 bg-green-100 text-green-700 rounded-lg">Active</span>
-                            </div>
-                            <div className="h-2 bg-gray-100 rounded-full w-full mb-2">
-                                <div className="h-full bg-green-500 w-2/3 rounded-full"></div>
-                            </div>
-                            <div className="text-xs text-gray-400 font-medium">65% Mastery • Exam in 14 days</div>
-                        </div>
-                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 opacity-60">
-                            <div className="flex justify-between items-center mb-4">
-                                <div className="font-bold text-lg">Art History</div>
-                                <span className="text-xs font-bold px-2 py-1 bg-gray-100 text-gray-500 rounded-lg">Paused</span>
-                            </div>
-                            <div className="h-2 bg-gray-100 rounded-full w-full mb-2">
-                                <div className="h-full bg-gray-300 w-1/4 rounded-full"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* --- ACT 2: THE COMPANION (Chat/Help) --- */}
-            <section className="py-32 px-6 bg-[#F3F4F6]">
-                <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-20 items-center md:flex-row-reverse">
-                    <div className="order-last md:order-first">
-                        {/* Chat Mockup */}
-                        <div className="glass-panel p-8 rounded-[40px] shadow-2xl bg-white relative">
-                            <div className="space-y-6">
-                                {/* Studdy Msg */}
-                                <div className="flex gap-4">
-                                    <div className="w-10 h-10 rounded-xl bg-[#4C8233] flex items-center justify-center text-white font-bold text-xs shrink-0">S</div>
-                                    <div className="bg-gray-100 p-4 rounded-2xl rounded-tl-none text-sm font-medium text-gray-800">
-                                        Wait, don't move on yet. You missed the key point about <strong>Mitochondria</strong>. Let me break it down simply...
+                {/* Hero Visual Mockup */}
+                <motion.div
+                    initial={{ opacity: 0, y: 40 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.8, delay: 0.4 }}
+                    className="mt-20 w-full max-w-4xl mx-auto"
+                >
+                    <div className="glass-panel p-4 rounded-[40px]">
+                        <div className="aspect-[16/9] bg-white rounded-3xl overflow-hidden relative group border border-gray-100">
+                            {/* Fake UI: Chat Interface */}
+                            <div className="absolute inset-0 flex flex-col bg-[#FAFAFA]">
+                                <div className="h-16 border-b border-gray-100 bg-white flex items-center px-8 justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-full bg-[var(--brand-primary)] shadow-sm" />
+                                        <div className="w-32 h-3 bg-gray-100 rounded-full" />
                                     </div>
                                 </div>
-                                {/* User Msg */}
-                                <div className="flex flex-row-reverse gap-4">
-                                    <div className="w-10 h-10 rounded-xl bg-gray-200 flex items-center justify-center shrink-0">You</div>
-                                    <div className="bg-[#1F2937] text-white p-4 rounded-2xl rounded-tr-none text-sm font-medium">
-                                        Oh, I thought I got it. Can you give me an analogy?
+                                <div className="flex-1 p-8 space-y-6">
+                                    <div className="flex gap-4">
+                                        <div className="w-10 h-10 rounded-full bg-[var(--brand-primary)] shrink-0 text-white flex items-center justify-center font-bold text-xs">S</div>
+                                        <div className="bg-white border border-gray-100 p-6 rounded-2xl rounded-tl-sm shadow-sm max-w-lg">
+                                            <div className="space-y-2">
+                                                Hello! I've analyzed your bio syllabus...
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-4 flex-row-reverse">
+                                        <div className="w-10 h-10 rounded-full bg-gray-200 shrink-0" />
+                                        <div className="bg-[var(--text-main)] p-6 rounded-2xl rounded-tr-sm shadow-sm text-white">
+                                            I can only study 3x per week.
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-4">
+                                        <div className="w-10 h-10 rounded-full bg-[var(--brand-primary)] shrink-0 text-white flex items-center justify-center font-bold text-xs">S</div>
+                                        <div className="bg-white border border-gray-100 p-6 rounded-2xl rounded-tl-sm shadow-sm">
+                                            Got it. Adjusting your timeline to maximize retention...
+                                        </div>
                                     </div>
                                 </div>
-                                {/* Analogy Card */}
-                                <div className="p-4 border border-[#4C8233]/30 bg-[#E8F5E9] rounded-2xl">
-                                    <div className="text-xs font-bold text-[#4C8233] uppercase mb-2">💡 Insight</div>
-                                    <p className="text-sm font-bold text-[#1F2937]">Think of Mitochondria as the Power Plant of a city...</p>
-                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </motion.div>
+            </section>
+
+
+            {/* --- FEATURE 1: ORGANIZE YOUR WAY --- */}
+            <SectionWrapper>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-20 items-center">
+                    <div>
+                        <SectionIcon icon={LayoutGrid} color="blue" />
+                        <h2 className="text-4xl md:text-5xl font-black mb-6 text-[var(--text-main)]">Organize Your Way</h2>
+                        <p className="text-xl text-[var(--text-muted)] leading-relaxed mb-8">
+                            Structure your courses however makes sense to you. Folders for lectures, past exams, notes—arrange it your way. goStuddy learns from how you organize.
+                        </p>
+                        <ul className="space-y-4">
+                            <FeatureCheck text="Flexible course organization" />
+                            <FeatureCheck text="Smart material categorization" />
+                            <FeatureCheck text="Your structure, amplified by AI" />
+                        </ul>
+                    </div>
+                    <div className="glass-panel p-8 rounded-[40px] rotate-2 hover:rotate-0 transition-transform duration-500">
+                        {/* Interactive Drag Drop Mockup */}
+                        <div className="flex items-center justify-between mb-8">
+                            <h3 className="font-bold text-gray-400 uppercase tracking-widest text-xs">Course Explorer</h3>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            {[1, 2, 3, 4].map((i) => (
+                                <motion.div
+                                    whileHover={{ scale: 1.05, y: -5 }}
+                                    key={i}
+                                    className="aspect-square rounded-2xl bg-white border border-[var(--border-thick)] flex flex-col items-center justify-center gap-3 cursor-pointer group hover:border-[var(--brand-primary)] hover:shadow-lg transition-all"
+                                >
+                                    <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center text-gray-400 group-hover:bg-[var(--brand-primary)] group-hover:text-white transition-colors">
+                                        <Library size={24} />
+                                    </div>
+                                    <span className="font-bold text-sm text-gray-500 group-hover:text-[var(--brand-primary)]">Folder {i}</span>
+                                </motion.div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </SectionWrapper>
+
+
+            {/* --- FEATURE 2: PLAN TOGETHER --- */}
+            <SectionWrapper className="bg-white border-y border-[var(--border-thick)]">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-20 items-center md:flex-row-reverse">
+                    <div className="order-last md:order-first relative h-[500px]">
+                        {/* Chat Plan Visual */}
+                        <div className="absolute inset-x-0 bottom-0 top-10 bg-[var(--bg-app)] rounded-[40px] border border-[var(--border-thick)] shadow-2xl p-6 flex flex-col justify-end gap-4">
+                            <div className="bg-white p-4 rounded-xl rounded-bl-sm border border-[var(--border-thick)] shadow-sm max-w-[80%] self-start">
+                                <p className="text-sm font-medium text-gray-600">Based on your syllabus, the exam is on May 15th.</p>
+                            </div>
+                            <div className="bg-[var(--text-main)] p-4 rounded-xl rounded-br-sm shadow-lg max-w-[80%] self-end text-white">
+                                <p className="text-sm font-medium">Okay, but I work weekends.</p>
+                            </div>
+                            <div className="bg-[var(--brand-primary)] p-4 rounded-xl rounded-bl-sm shadow-md max-w-[90%] self-start text-white">
+                                <p className="text-sm font-bold flex items-center gap-2">
+                                    <Zap size={16} fill="currentColor" />
+                                    Plan updated: Weekday intensity increased by 15%.
+                                </p>
                             </div>
                         </div>
                     </div>
                     <div>
-                        <div className="w-14 h-14 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-6">
-                            <MessageCircle size={32} />
-                        </div>
-                        <h2 className="text-4xl md:text-5xl font-black mb-6 text-[#1F2937]">Your 24/7 Tutor.</h2>
-                        <p className="text-xl text-[#6B7280] leading-relaxed mb-8">
-                            Stuck on a concept? Just ask. Imagine a tutor who knows your entire syllabus by heart and is always awake.
+                        <SectionIcon icon={Clock} color="green" />
+                        <h2 className="text-4xl md:text-5xl font-black mb-6 text-[var(--text-main)]">Plan Together</h2>
+                        <p className="text-xl text-[var(--text-muted)] leading-relaxed mb-8">
+                            Upload your materials. goStuddy analyzes everything, then suggests a study plan based on your goals. Approve it, adjust it, or redesign it completely.
                         </p>
                         <ul className="space-y-4">
-                            <FeatureCheck text="Instant Explanations (ELI5)" />
-                            <FeatureCheck text="Socratic Questioning" />
-                            <FeatureCheck text="Context-Aware Answers" />
+                            <FeatureCheck text="AI-generated study roadmaps" />
+                            <FeatureCheck text="Fully customizable plans" />
+                            <FeatureCheck text="Adapts to your schedule and pace" />
                         </ul>
                     </div>
                 </div>
-            </section>
+            </SectionWrapper>
 
-            {/* --- ACT 3: THE GAME (Fun) --- */}
-            <section className="py-32 px-6 bg-[#111827] text-white rounded-[60px] mx-4 mb-20 relative overflow-hidden">
-                {/* Background Glow */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#4C8233] opacity-20 blur-[120px] rounded-full pointer-events-none"></div>
 
-                <div className="relative z-10 max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-20 items-center">
+            {/* --- FEATURE 3: ADAPTIVE SESSIONS --- */}
+            <SectionWrapper>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-20 items-center">
                     <div>
-                        <div className="w-14 h-14 bg-gray-800 text-[#4C8233] rounded-2xl flex items-center justify-center mb-6 border border-gray-700">
-                            <TrendingUp size={32} />
-                        </div>
-                        <h2 className="text-4xl md:text-5xl font-black mb-6">Addictively Fun.</h2>
-                        <p className="text-xl text-gray-400 leading-relaxed mb-8">
-                            We turned studying into an RPG. Earn XP, keep your streak alive, and watch your Companion evolve as you get smarter.
+                        <SectionIcon icon={Brain} color="purple" />
+                        <h2 className="text-4xl md:text-5xl font-black mb-6 text-[var(--text-main)]">Study Sessions That Adapt</h2>
+                        <p className="text-xl text-[var(--text-muted)] leading-relaxed mb-8">
+                            goStuddy guides you through concepts, generates practice questions from your materials, and adjusts difficulty in real-time based on how you're doing.
                         </p>
                         <ul className="space-y-4">
-                            <FeatureCheck text="Daily Streak Battles" dark />
-                            <FeatureCheck text="Evolving Avatar System" dark />
-                            <FeatureCheck text="Global Leaderboards" dark />
+                            <FeatureCheck text="Explanations grounded in your course" />
+                            <FeatureCheck text="Practice from your past exams" />
+                            <FeatureCheck text="Difficulty that matches your level" />
                         </ul>
                     </div>
-                    <div className="flex justify-center">
-                        {/* Evolution Card */}
-                        <div className="relative w-80 h-96 bg-gray-900 border border-gray-700 rounded-[40px] flex flex-col items-center justify-center shadow-2xl">
-                            <div className="absolute top-6 right-6 px-3 py-1 bg-[#4C8233] text-white text-xs font-bold rounded-full">LVL 4</div>
-
-                            <div className="relative mb-8">
-                                <div className="w-40 h-40 bg-gradient-to-b from-[#4C8233] to-[#2F4F2F] rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(76,130,51,0.6)] animate-pulse-slow">
-                                    <Swords size={60} className="text-white" />
+                    <div className="relative">
+                        {/* Card Stack Visual */}
+                        <div className="absolute top-0 left-0 w-full h-[400px] bg-white rounded-3xl border border-[var(--border-thick)] shadow-sm rotate-6 opacity-40 scale-90"></div>
+                        <div className="absolute top-4 left-0 w-full h-[400px] bg-white rounded-3xl border border-[var(--border-thick)] shadow-sm -rotate-3 opacity-70 scale-95"></div>
+                        <div className="relative w-full h-[400px] bg-white rounded-3xl border border-[var(--border-thick)] shadow-xl flex flex-col p-8">
+                            <div className="flex-1 flex items-center justify-center text-center">
+                                <div>
+                                    <span className="text-xs font-bold text-[var(--brand-primary)] uppercase tracking-widest mb-4 block">Question</span>
+                                    <h3 className="text-2xl font-bold text-[var(--text-main)]">Explain the process of Osmosis.</h3>
                                 </div>
                             </div>
-
-                            <h3 className="text-2xl font-black mb-2">Scholar Class</h3>
-                            <div className="text-gray-500 text-sm font-bold mb-6">450 / 1000 XP</div>
-
-                            <div className="w-4/5 h-3 bg-gray-800 rounded-full overflow-hidden">
-                                <div className="h-full w-[45%] bg-[#4C8233]"></div>
+                            <div className="h-14 bg-gray-50 rounded-xl border border-[var(--border-thick)] flex items-center justify-center text-gray-400 font-bold hover:bg-[var(--brand-primary)] hover:text-white transition-colors cursor-pointer">
+                                Reveal Answer
                             </div>
                         </div>
                     </div>
                 </div>
-            </section>
+            </SectionWrapper>
 
-            {/* --- FINAL CTA --- */}
-            <section className="py-20 text-center">
-                <h2 className="text-5xl font-black mb-8 text-[#1F2937]">Ready to Level Up?</h2>
-                <Link href="/dashboard/upload" className="inline-block px-12 py-5 bg-[#4C8233] text-white rounded-2xl text-xl font-bold shadow-xl hover:scale-105 transition-transform">
-                    Create Free Account
-                </Link>
-            </section>
-        </div>
+
+            {/* --- FEATURE 4: BUILD HABIT --- */}
+            <SectionWrapper>
+                <div className="bg-[var(--text-main)] text-white rounded-[4rem] p-12 md:p-20 shadow-2xl relative overflow-hidden">
+                    {/* Glow */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[var(--brand-primary)] opacity-20 blur-[120px] rounded-full pointer-events-none"></div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-20 items-center relative z-10">
+                        <div className="order-last md:order-first flex justify-center">
+                            <div className="relative w-80 h-80">
+                                <div className="absolute inset-0 bg-[var(--brand-primary)] rounded-full blur-[60px] opacity-20 animate-pulse"></div>
+                                <div className="relative bg-white/5 backdrop-blur-xl border border-white/10 p-8 rounded-[40px] w-full h-full flex flex-col items-center justify-center text-center">
+                                    <div className="flex items-center gap-2">
+                                        <FlameIcon size={80} className="font-black mb-2 " />
+                                        <div className="text-8xl font-black mb-2"> 12</div>
+                                    </div>
+                                    <div className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-8">Day Streak</div>
+                                    <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden">
+                                        <div className="h-full w-[80%] bg-[var(--brand-primary)]"></div>
+                                    </div>
+                                    <div className="mt-4 text-xs font-bold text-[var(--brand-primary)]">Level 5 Scholar</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <div className="w-14 h-14 bg-white/10 text-[var(--brand-primary)] rounded-2xl flex items-center justify-center mb-6 backdrop-blur-md">
+                                <Trophy size={28} />
+                            </div>
+                            <h2 className="text-4xl md:text-5xl font-black mb-6">Build the Habit</h2>
+                            <p className="text-xl text-gray-400 leading-relaxed mb-8">
+                                Earn rewards for showing up. Track mastery across topics. Watch your progress compound. goStuddy makes consistency feel achievable.
+                            </p>
+                            <ul className="space-y-4">
+                                <FeatureCheck text="Streaks that motivate" dark />
+                                <FeatureCheck text="Clear progress tracking" dark />
+                                <FeatureCheck text="Rewards that reinforce effort" dark />
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </SectionWrapper >
+
+
+            {/* --- FEATURE 5: STAYS WITH YOU --- */}
+            < SectionWrapper >
+                <div className="text-center max-w-4xl mx-auto mb-20">
+                    <SectionIcon icon={Heart} color="red" className="mx-auto" />
+                    <h2 className="text-4xl md:text-5xl font-black mb-6 text-[var(--text-main)]">Stays With You</h2>
+                    <p className="text-xl text-[var(--text-muted)] leading-relaxed">
+                        Struggling on a topic? goStuddy notices and adjusts. Crushing it? It moves faster. Busy week? It reschedules. Your study buddy adapts to your life, not the other way around.
+                    </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <FeatureCard title="Real-time adaptation" desc="Miss a day? The plan auto-shifts." delay={0} />
+                    <FeatureCard title="Flexible pacing" desc="Go deep on hard topics, skim the easy ones." delay={0.1} />
+                    <FeatureCard title="Learns your patterns" desc="It knows when you're most productive." delay={0.2} />
+                </div>
+            </SectionWrapper >
+
+
+            {/* --- CTA --- */}
+            < section className="py-32 px-6 text-center" >
+                <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    whileInView={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.5 }}
+                    viewport={{ once: true }}
+                >
+                    <h2 className="text-5xl md:text-7xl font-black mb-8 text-[var(--text-main)]">
+                        Ready for a <br />
+                        <span className="text-[var(--brand-primary)]">Better Way to Study?</span>
+                    </h2>
+                    <p className="text-xl text-[var(--text-muted)] mb-12 font-medium">Stop feeling overwhelmed. Start building habits that stick.</p>
+
+                    <div className="flex flex-col items-center gap-4">
+                        <Link href="/dashboard/upload" className="btn-primary flex items-center gap-2 group text-xl px-12 py-5 rounded-[20px]">
+                            Create Free Account
+                        </Link>
+                        <span className="text-sm font-bold text-gray-400">No credit card required</span>
+                    </div>
+                </motion.div>
+            </section >
+
+            {/* --- FOOTER --- */}
+            < footer className="py-12 border-t border-[var(--border-thick)] text-center text-gray-400 text-sm font-medium" >
+                <div className="flex justify-center gap-8 mb-8">
+                    <a href="#" className="hover:text-[var(--brand-primary)]">About</a>
+                    <a href="#" className="hover:text-[var(--brand-primary)]">Features</a>
+                    <a href="#" className="hover:text-[var(--brand-primary)]">Pricing</a>
+                    <a href="#" className="hover:text-[var(--brand-primary)]">Contact</a>
+                </div>
+                <p>© 2026 goStuddy • Your AI Study Buddy</p>
+            </footer >
+
+        </div >
     );
 }
 
 // --- SUBCOMPONENTS ---
 
-function FeatureCheck({ text, dark }: { text: string, dark?: boolean }) {
+function SectionWrapper({ children, className }: { children: React.ReactNode, className?: string }) {
     return (
-        <div className="flex items-center gap-3 font-medium text-lg">
-            <CheckCircle size={20} className={dark ? "text-[#4C8233]" : "text-green-600"} />
-            <span className={dark ? "text-gray-300" : "text-gray-600"}>{text}</span>
+        <section className={cn("py-32 px-6", className)}>
+            <div className="max-w-6xl mx-auto">
+                {children}
+            </div>
+        </section>
+    );
+}
+
+function SectionIcon({ icon: Icon, color, className }: { icon: any, color: string, className?: string }) {
+    const colorClasses: Record<string, string> = {
+        blue: "bg-blue-50 text-blue-600",
+        green: "bg-[#4C8233]/10 text-[var(--brand-primary)]",
+        purple: "bg-purple-50 text-purple-600",
+        red: "bg-red-50 text-red-500",
+    };
+
+    return (
+        <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center mb-8", colorClasses[color], className)}>
+            <Icon size={32} strokeWidth={2.5} />
         </div>
     );
 }
 
+function FeatureCheck({ text, dark }: { text: string, dark?: boolean }) {
+    return (
+        <div className="flex items-center gap-3 font-medium text-lg">
+            <div className={cn("w-6 h-6 rounded-full flex items-center justify-center shrink-0", dark ? "bg-white/10 text-[var(--brand-primary)]" : "bg-[#4C8233]/10 text-[var(--brand-primary)]")}>
+                <CheckCircle size={14} strokeWidth={3} />
+            </div>
+            <span className={dark ? "text-gray-300" : "text-[var(--text-muted)]"}>{text}</span>
+        </div>
+    );
+}
+
+function FeatureCard({ title, desc, delay }: { title: string, desc: string, delay: number }) {
+    return (
+        <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            whileInView={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.5, delay }}
+            viewport={{ once: true }}
+            className="glass-panel p-8 rounded-3xl hover:border-[var(--brand-primary)] transition-colors"
+        >
+            <h3 className="text-xl font-bold text-[var(--text-main)] mb-3">{title}</h3>
+            <p className="text-[var(--text-muted)] leading-relaxed font-medium">{desc}</p>
+        </motion.div>
+    )
+}
+
 function NavBar() {
     return (
-        <nav className="fixed top-0 left-0 right-0 z-50 px-8 py-6 flex justify-between items-center pointer-events-none">
-            <div className="glass-panel px-5 py-2.5 rounded-xl flex items-center gap-3 pointer-events-auto shadow-sm">
-                <span className="font-extrabold text-xl tracking-tight text-[#2F4F2F]">getStuddy</span>
+        <nav className="fixed top-0 left-0 right-0 z-50 px-6 py-6 flex justify-between items-center pointer-events-none">
+            <div className="glass-panel px-6 py-3 rounded-2xl flex items-center gap-3 pointer-events-auto">
+                <span className="font-extrabold text-xl tracking-tight text-[var(--brand-dark)]">goStuddy</span>
             </div>
             <div className="flex gap-4 pointer-events-auto">
-                <Link href="/dashboard" className="px-5 py-2.5 glass-panel text-[#2F4F2F] font-bold hover:bg-white rounded-xl transition-all text-sm shadow-sm">
+                <Link href="/dashboard" className="btn-secondary text-sm">
                     Log In
                 </Link>
-                <Link href="/dashboard/upload" className="px-5 py-2.5 bg-[#1F2937] text-white font-bold rounded-xl shadow-lg hover:scale-105 transition-all text-sm">
+                <Link href="/dashboard/upload" className="btn-primary text-sm shadow-xl shadow-[#4C8233]/20">
                     Launch App
                 </Link>
             </div>
         </nav>
     )
 }
+
+function Brain(props: any) { return <Zap {...props} /> } 
