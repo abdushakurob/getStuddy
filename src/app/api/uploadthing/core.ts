@@ -3,6 +3,7 @@ import { loadPdfFromUrl } from "@/lib/pdf-loader";
 import { analyzeDocument } from "@/lib/gemini";
 import dbConnect from "@/lib/db";
 import Resource from "@/models/Resource";
+import Course from "@/models/Course";
 import { auth } from "@/auth";
 import { z } from "zod";
 import mongoose from 'mongoose';
@@ -12,8 +13,8 @@ const f = createUploadthing();
 export const ourFileRouter = {
     resourceUploader: f({ pdf: { maxFileSize: "16MB", maxFileCount: 4 } })
         .input(z.object({
-            courseId: z.string(),
-            folderId: z.string() // Always string, "null" if root
+            courseId: z.string().optional(),
+            folderId: z.string().optional()
         }))
         .middleware(async ({ req, input }) => {
             console.log("Upload Middleware Input (Server):", input);
@@ -24,28 +25,51 @@ export const ourFileRouter = {
             // Return strings ONLY for metadata safety
             return {
                 userId: user.id,
-                courseId: input.courseId,
-                folderContext: input.folderId // Values: "null" or "abc1234"
+                courseId: input?.courseId,
+                folderContext: input?.folderId // Values: "null" or "abc1234"
             };
         })
         .onUploadComplete(async ({ metadata, file }) => {
             console.log("Upload Complete. Metadata:", metadata);
 
-            // Explicit ObjectId Casting
-            let finalFolderId = null;
-            if (metadata.folderContext && metadata.folderContext !== "null") {
-                try {
-                    finalFolderId = new mongoose.Types.ObjectId(metadata.folderContext);
-                } catch (e) {
-                    console.error("Invalid Folder ID format:", metadata.folderContext);
-                    finalFolderId = null;
-                }
-            }
-
-            console.log(`[onUploadComplete] Final Folder ID Strategy: '${metadata.folderContext}' ->`, finalFolderId);
-
             try {
                 await dbConnect();
+
+                // Explicit ObjectId Casting for Folder
+                let finalFolderId = null;
+                if (metadata.folderContext && metadata.folderContext !== "null") {
+                    try {
+                        finalFolderId = new mongoose.Types.ObjectId(metadata.folderContext);
+                    } catch (e) {
+                        console.error("Invalid Folder ID format:", metadata.folderContext);
+                        finalFolderId = null;
+                    }
+                }
+
+                // Handle Missing Course ID -> Create New Course
+                let finalCourseId = metadata.courseId;
+                if (!finalCourseId) {
+                    console.log("No Course ID provided. Creating new default course...");
+                    // Need to dynamic import or ensure Course is registered if using mongoose.models
+                    // Importing Course at top level is better.
+                    // For now, let's use the local import inside logic or assume it is imported at top
+                    // I will add the import at the top in a separate edit or this one if I can.
+
+                    // Assuming Course is imported or we use mongoose.model("Course")
+                    const CourseModel = mongoose.models.Course || mongoose.model("Course");
+
+                    const newCourse = await CourseModel.create({
+                        userId: metadata.userId,
+                        title: "New Mission Map",
+                        description: "Created from upload",
+                        color: "#00F2D3"
+                    });
+                    finalCourseId = newCourse._id.toString();
+                    console.log("Created new Course:", finalCourseId);
+                }
+
+                console.log(`[onUploadComplete] Final Folder ID Strategy: '${metadata.folderContext}' ->`, finalFolderId);
+
 
                 // 1. Prepare Data
                 let text = "";
@@ -56,7 +80,8 @@ export const ourFileRouter = {
                 // 2. Try Parsing (Fail-Safe)
                 try {
                     console.log("Downloading and parsing PDF...");
-                    text = await loadPdfFromUrl(file.url);
+                    const pdfText = await loadPdfFromUrl(file.url);
+                    text = pdfText;
                     console.log("PDF parsed. Text length:", text.length);
 
                     console.log("Analyzing with Gemini...");
@@ -73,9 +98,9 @@ export const ourFileRouter = {
                 }
 
                 // 3. Save Resource (ALWAYS)
-                console.log(`[onUploadComplete] Saving Resource. Folder: ${finalFolderId}, Status: ${status}`);
+                console.log(`[onUploadComplete] Saving Resource. Course: ${finalCourseId}, Folder: ${finalFolderId}, Status: ${status}`);
                 const resource = await Resource.create({
-                    courseId: metadata.courseId,
+                    courseId: finalCourseId,
                     folderId: finalFolderId,
                     userId: metadata.userId,
                     title: file.name,
