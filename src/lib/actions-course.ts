@@ -105,7 +105,7 @@ export async function createFolder(courseId: string, parentId: string | null, fo
 
 export async function getCourseContent(courseId: string, folderId: string | null) {
     const session = await auth();
-    if (!session?.user?.id) return { folders: [], resources: [], navigation: [] };
+    if (!session?.user?.id) return { folders: [], resources: [], navigation: [], courseTitle: '' };
 
     await dbConnect();
 
