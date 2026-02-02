@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, User as UserIcon, Bot, Loader2, Sparkles } from 'lucide-react';
 import { sendMessage, getChatHistory } from '@/lib/actions-chat';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Message {
     id: string;
@@ -105,7 +107,37 @@ export default function NegotiationChat({ courseId }: { courseId: string }) {
                                 : 'bg-white border border-gray-100 shadow-sm text-gray-700 rounded-tl-sm'
                             }
                         `}>
-                            {msg.content}
+                            {/* MARKDOWN RENDERING */}
+                            <div className={`prose prose-sm max-w-none break-words
+                                ${msg.role === 'user'
+                                    ? 'prose-invert prose-p:text-white prose-headings:text-white'
+                                    : 'prose-headings:text-[#1F2937] prose-p:text-gray-600 prose-strong:text-[#4C8233]'
+                                }
+                            `}>
+                                <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                        // Custom link styling
+                                        a: ({ node, ...props }) => <a {...props} className="text-[#4C8233] underline hover:text-[#3D6A29]" target="_blank" rel="noopener noreferrer" />,
+                                        // Clean paragraphs
+                                        p: ({ node, ...props }) => <p {...props} className="mb-2 last:mb-0" />,
+                                        // styled lists
+                                        ul: ({ node, ...props }) => <ul {...props} className="list-disc pl-4 mb-2 space-y-1" />,
+                                        ol: ({ node, ...props }) => <ol {...props} className="list-decimal pl-4 mb-2 space-y-1" />,
+                                        // Styled Tables
+                                        table: ({ node, ...props }) => (
+                                            <div className="overflow-x-auto my-4 rounded-xl border border-gray-200">
+                                                <table {...props} className="w-full text-sm text-left" />
+                                            </div>
+                                        ),
+                                        thead: ({ node, ...props }) => <thead {...props} className="bg-gray-50 text-xs uppercase text-gray-500 font-bold" />,
+                                        th: ({ node, ...props }) => <th {...props} className="px-4 py-3 border-b border-gray-100" />,
+                                        td: ({ node, ...props }) => <td {...props} className="px-4 py-3 border-b border-gray-100 last:border-0" />,
+                                    }}
+                                >
+                                    {msg.content}
+                                </ReactMarkdown>
+                            </div>
                         </div>
                     </div>
                 ))}
