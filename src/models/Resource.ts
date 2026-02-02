@@ -24,7 +24,7 @@ const ResourceSchema = new Schema<IResource>({
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
 
     title: { type: String, required: true },
-    type: { type: String, enum: ['pdf', 'slide', 'note'], default: 'pdf' },
+    type: { type: String, enum: ['pdf', 'slide', 'note', 'exam_paper', 'syllabus'], default: 'pdf' },
     fileUrl: { type: String, required: true },
 
     knowledgeBase: { type: String }, // Can be large, contains the "Truth"

@@ -45,6 +45,8 @@ const model = genAI.getGenerativeModel({
             ]
         }
     ]
+}, {
+    timeout: 180000 // 3 Minutes Timeout for long chains
 });
 
 console.log("Gemini Model Initialized: gemini-3-flash-preview (Agentic Mode)");
@@ -52,6 +54,9 @@ console.log("Gemini Model Initialized: gemini-3-flash-preview (Agentic Mode)");
 // Helper to fetch and convert URL to Base64
 async function urlToGenerativePart(url: string, mimeType: string) {
     const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.statusText}`);
+    }
     const buffer = await response.arrayBuffer();
     return {
         inlineData: {
@@ -61,10 +66,10 @@ async function urlToGenerativePart(url: string, mimeType: string) {
     };
 }
 
-export async function analyzeDocument(fileUrl: string) {
+export async function analyzeDocument(fileUrl: string, mimeType: string = "application/pdf") {
     const prompt = `
     You are Studdy, an elite academic strategist. 
-    Analyze the attached course document (PDF, Image, or Text).
+    Analyze the attached course document (PDF, Image, Audio, or Text).
     
     GOAL: Create a structured "Mission Map" (Syllabus) for the student.
     
@@ -91,43 +96,55 @@ export async function analyzeDocument(fileUrl: string) {
   `;
 
     try {
-        console.log("Fetching file for Gemini Multimodal:", fileUrl);
-        const filePart = await urlToGenerativePart(fileUrl, "application/pdf");
+        console.log(`[Gemini] Starting analysis for: ${fileUrl} (${mimeType})`);
+        console.log(`[Gemini] Using Model: ${model.model}`);
 
+        const filePart = await urlToGenerativePart(fileUrl, mimeType);
+
+        console.log("[Gemini] Sending request to Google AI...");
         const result = await model.generateContent([prompt, filePart]);
         const response = result.response;
         const text = response.text();
+        console.log("[Gemini] Raw Response Preview:", text.substring(0, 100) + "...");
 
         // Clean up functionality to ensure JSON
         const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
         return JSON.parse(jsonString);
-    } catch (error) {
+    } catch (error: any) {
         console.error("Gemini Multimodal Analysis Failed:", error);
+        if (error.response) {
+            console.error("Gemini API Error Details:", JSON.stringify(error.response, null, 2));
+        }
         return null;
     }
 }
 
 export async function chatWithAgent(message: string, history: any[], contextText: string = "") {
     const systemInstruction = `
-    You are Studdy, a loyal and intelligent Study Companion (The "Buddy").
-    Your Mission: Collaborate with the user to build a realistic Study Plan.
+    You are Studdy, an expert "Learning Strategist".
+    
+    YOUR TRUTH:
+    - The user wants to MASTER this content, not just "pass".
+    - They might NOT be in school. They could be self-learning ML, cooking, or coding.
+    - Do NOT assume arbitrary deadlines (like "exams") unless told.
+    
+    YOUR JOB:
+    1. Analyze the *Topology* of the Knowledge Base below. (What depends on what?)
+    2. Propose the most EFFICIENT path to Mastery.
+       - "I've scanned the Python book. To build a neural network (your goal), we can skip the GUI chapters and focus entirely on Data Structures. Here is a sprint plan."
+    3. Be a Partner, not a Boss.
+       - "Does this pace work for you, or do you want to go hardcore?"
+    4. When agreed, CALL THE 'commit_study_plan' TOOL to lock it in.
     
     TONE:
-    - Friendly, encouraging, and "in the trenches" with them.
-    - Proactive but collaborative.
+    - Smart, Adaptive, Strategic.
+    - "Here is the optimal route."
+    - Use Markdown for clarity.
     
-    CONTEXT:
-    The user is taking a course.
-    Here is the Knowledge Base (Distilled Intelligence) of the syllabus:
+    CONTEXT (The Knowledge to Master):
     "${contextText.substring(0, 500000)}"
     
-    The current date is: ${new Date().toISOString().split('T')[0]}
-
-    GOAL:
-    1. Understand the user's exam dates and constraints.
-    2. Propose a schedule.
-    3. IMPORTANT: Once the user explicitly agrees to the schedule, YOU MUST CALL THE 'commit_study_plan' TOOL.
-       - Do not just say "Okay I saved it". You must actually trigger the tool.
+    Current Date: ${new Date().toISOString().split('T')[0]}
     `;
 
     // 2. Start Chat
@@ -144,33 +161,53 @@ export async function chatWithAgent(message: string, history: any[], contextText
             ...history
         ],
         generationConfig: {
-            maxOutputTokens: 1000,
+            maxOutputTokens: 8192,
+            temperature: 0.7,
         },
     });
 
-    try {
-        const result = await chat.sendMessage(message);
+    // 3. Send Message with Auto-Retry
+    let attempt = 0;
+    const MAX_RETRIES = 3;
 
-        // CHECK FOR TOOL CALLS
-        const calls = result.response.functionCalls();
-        if (calls && calls.length > 0) {
-            console.log("🚀 AGENT IS TRIGGERING A TOOL:", calls[0].name);
-            // Return the tool call data so the server action can execute it
+    while (attempt < MAX_RETRIES) {
+        try {
+            const result = await chat.sendMessage(message);
+
+            // CHECK FOR TOOL CALLS
+            const calls = result.response.functionCalls();
+            if (calls && calls.length > 0) {
+                // Return the tool call data so the server action can execute it
+                return {
+                    type: 'tool_call',
+                    toolName: calls[0].name,
+                    args: calls[0].args
+                };
+            }
+
+            // Normal Text Response
             return {
-                type: 'tool_call',
-                toolName: calls[0].name,
-                args: calls[0].args
+                type: 'text',
+                content: result.response.text()
             };
+
+        } catch (error: any) {
+            attempt++;
+            console.warn(`[Gemini] Attempt ${attempt} failed:`, error.message);
+
+            if (attempt >= MAX_RETRIES) {
+                console.error("[Gemini] All retries exhausted.");
+                // Return a specific error object so the UI/DB knows it failed but preserves context
+                return {
+                    type: 'error',
+                    content: "I'm having trouble reaching the extensive knowledge base right now. Please tell me to 'try again' or continue."
+                };
+            }
+
+            // Exponential Backoff (1s, 2s, 4s...)
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
         }
-
-        // Normal Text Response
-        return {
-            type: 'text',
-            content: result.response.text()
-        };
-
-    } catch (error) {
-        console.error("Gemini Chat Failed:", error);
-        return { type: 'error', content: "I'm having trouble connecting. Please try again." };
     }
+
+    return { type: 'error', content: "Unexpected error." };
 }

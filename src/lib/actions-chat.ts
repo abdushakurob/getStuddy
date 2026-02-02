@@ -41,14 +41,37 @@ export async function sendMessage(courseId: string, content: string) {
         content
     });
 
-    // 2. Fetch Context (Recent Resources)
+    // 2. Fetch Context.
+    // 1M context is more than enough for most courses.
     const resources = await Resource.find({ courseId, userId: session.user.id })
         .sort({ createdAt: -1 })
-        .limit(3)
         .select('knowledgeBase title')
         .lean();
 
-    const contextText = resources.map((r: any) => `[Document: ${r.title}]\n${r.knowledgeBase?.substring(0, 5000)}`).join("\n\n");
+    // 2.5 Fetch GLOBAL CONTEXT (Other Active Plans)
+    // This allows the Agent to know if the user is busy with other subjects.
+    const otherPlans = await StudyPlan.find({
+        userId: session.user.id,
+        status: 'active',
+        courseId: { $ne: courseId } // Don't include the current one if it exists (though usually it wouldn't match context)
+    }).select('goal phase schedule').lean();
+
+    let globalContext = "";
+    if (otherPlans.length > 0) {
+        globalContext = `\n\n[GLOBAL CONTEXT: OTHER ACTIVE PLANS]\nThe user has these other commitments:\n`;
+        otherPlans.forEach((p: any) => {
+            globalContext += `- Plan: ${p.phase} (Goal: ${p.goal}). Next Tasks:\n`;
+            // Show next 3 tasks to keep it concise
+            p.schedule.slice(0, 3).forEach((t: any) => {
+                globalContext += `  * ${t.date.toISOString().split('T')[0]}: ${t.topicName}\n`;
+            });
+        });
+    }
+
+    const docContext = resources.map((r: any) => `[Document: ${r.title}]\n${r.knowledgeBase?.substring(0, 5000)}`).join("\n\n");
+    const contextText = `${docContext}${globalContext}`;
+
+    // 3. Fetch History
 
     // 3. Fetch History
     const history = await Message.find({ courseId, userId: session.user.id })
@@ -61,19 +84,17 @@ export async function sendMessage(courseId: string, content: string) {
         parts: [{ text: m.content }]
     }));
 
-    // 4. Call Gemini (Now returns an object, not just string)
+    // Cal Gemini
     // @ts-ignore
     const aiResponse = await chatWithAgent(content, geminiHistory, contextText);
 
     let finalAiText = "";
 
-    // 5. Handle Tool Calls
+    // Handle Tool Calls
     if (aiResponse.type === 'tool_call' && aiResponse.toolName === 'commit_study_plan') {
-        console.log("🛠️ EXECUTING TOOL: commit_study_plan", aiResponse.args);
-        const args = aiResponse.args;
+        const args = aiResponse.args as any;
 
-        // A: Save the Plan to DB
-        // Map the generic 'tasks' to our Schema's 'schedule'
+        // Map 'tasks' to schema 'schedule'
         const schedule = args.tasks.map((t: any) => ({
             date: new Date(t.dateString),
             topicName: t.topicName,
@@ -96,7 +117,7 @@ export async function sendMessage(courseId: string, content: string) {
         finalAiText = "I tried to use a tool I don't know yet.";
     } else {
         // Normal text
-        finalAiText = aiResponse.content;
+        finalAiText = aiResponse.content || "";
     }
 
     // 6. Save AI Message
