@@ -1,9 +1,11 @@
+
 'use server';
 
 import { auth } from '@/auth';
 import dbConnect from './db';
 import Message from '@/models/Message';
 import Resource from '@/models/Resource';
+import StudyPlan from '@/models/StudyPlan';
 import { chatWithAgent } from './gemini';
 import { revalidatePath } from 'next/cache';
 
@@ -40,37 +42,69 @@ export async function sendMessage(courseId: string, content: string) {
     });
 
     // 2. Fetch Context (Recent Resources)
-    // We grab the text from the top 3 resources to give the agent context
-    // In a real app, uses RAG. Here we blindly stuff context (Alpha).
     const resources = await Resource.find({ courseId, userId: session.user.id })
         .sort({ createdAt: -1 })
         .limit(3)
-        .select('extractedText title')
+        .select('knowledgeBase title')
         .lean();
 
-    const contextText = resources.map((r: any) => `[Document: ${r.title}]\n${r.extractedText?.substring(0, 5000)}`).join("\n\n");
+    const contextText = resources.map((r: any) => `[Document: ${r.title}]\n${r.knowledgeBase?.substring(0, 5000)}`).join("\n\n");
 
-    // 3. Fetch History (Last 10 messages)
+    // 3. Fetch History
     const history = await Message.find({ courseId, userId: session.user.id })
-        .sort({ createdAt: -1 }) // Get newest first
+        .sort({ createdAt: -1 })
         .limit(10)
         .lean();
 
-    // Reverse for API (Oldest first)
     const geminiHistory = history.reverse().map((m: any) => ({
         role: m.role === 'user' ? 'user' : 'model',
         parts: [{ text: m.content }]
     }));
 
-    // 4. Call Gemini
-    const aiResponseText = await chatWithAgent(content, geminiHistory, contextText);
+    // 4. Call Gemini (Now returns an object, not just string)
+    // @ts-ignore
+    const aiResponse = await chatWithAgent(content, geminiHistory, contextText);
 
-    // 5. Save AI Message
+    let finalAiText = "";
+
+    // 5. Handle Tool Calls
+    if (aiResponse.type === 'tool_call' && aiResponse.toolName === 'commit_study_plan') {
+        console.log("🛠️ EXECUTING TOOL: commit_study_plan", aiResponse.args);
+        const args = aiResponse.args;
+
+        // A: Save the Plan to DB
+        // Map the generic 'tasks' to our Schema's 'schedule'
+        const schedule = args.tasks.map((t: any) => ({
+            date: new Date(t.dateString),
+            topicName: t.topicName,
+            activityType: t.activityType || 'read',
+            status: 'pending',
+            reasoning: t.reasoning
+        }));
+
+        await StudyPlan.create({
+            courseId,
+            userId: session.user.id,
+            goal: args.goal,
+            phase: args.phase,
+            schedule: schedule,
+            status: 'active'
+        });
+
+        finalAiText = `✅ **Plan Locked!**\n\nI have saved your "${args.phase}" strategy to the Mission Control.\n\nYour first mission is: **${schedule[0].topicName}** on ${args.tasks[0].dateString}.\n\n(Go to the Dashboard to start)`;
+    } else if (aiResponse.type === 'tool_call') {
+        finalAiText = "I tried to use a tool I don't know yet.";
+    } else {
+        // Normal text
+        finalAiText = aiResponse.content;
+    }
+
+    // 6. Save AI Message
     const aiMsg = await Message.create({
         courseId,
         userId: session.user.id,
         role: 'assistant',
-        content: aiResponseText
+        content: finalAiText
     });
 
     revalidatePath(`/dashboard/courses/${courseId}`);

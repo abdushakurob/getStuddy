@@ -6,7 +6,7 @@ import Course from '@/models/Course';
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
+const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
 export async function POST(req: NextRequest) {
     try {

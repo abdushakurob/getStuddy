@@ -10,7 +10,7 @@ export interface IResource extends Document {
     fileUrl: string; // The UploadThing public URL
 
     // The Intel (AI Context)
-    extractedText: string; // Full text content
+    knowledgeBase: string; // The "Distilled Knowledge" (Not just raw text)
     summary?: string;      // AI generated summary
     vectorId?: string;     // If we use a vector DB later
 
@@ -27,7 +27,7 @@ const ResourceSchema = new Schema<IResource>({
     type: { type: String, enum: ['pdf', 'slide', 'note'], default: 'pdf' },
     fileUrl: { type: String, required: true },
 
-    extractedText: { type: String }, // Can be large
+    knowledgeBase: { type: String }, // Can be large, contains the "Truth"
     summary: { type: String },
 
     status: { type: String, enum: ['processing', 'ready', 'error'], default: 'processing' },
