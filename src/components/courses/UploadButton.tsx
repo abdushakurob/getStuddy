@@ -14,10 +14,13 @@ export default function UploadButton({ courseId, folderId }: UploadButtonProps) 
     const router = useRouter();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+    const [warningMsg, setWarningMsg] = useState<string | null>(null);
 
     const { startUpload } = useUploadThing("resourceUploader", {
         onClientUploadComplete: () => {
+            // Update UI IMMEDIATELY
             setUploadStatus('success');
+            // Then refresh (which might be slow)
             router.refresh();
             // Reset to idle after a moment
             setTimeout(() => setUploadStatus('idle'), 2000);
@@ -30,14 +33,23 @@ export default function UploadButton({ courseId, folderId }: UploadButtonProps) 
     });
 
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        setWarningMsg(null);
         if (!e.target.files || e.target.files.length === 0) return;
 
-        setUploadStatus('uploading');
         const files = Array.from(e.target.files);
+        const file = files[0];
+
+        // Check for PowerPoint
+        if (file.name.endsWith('.pptx') || file.name.endsWith('.ppt')) {
+            setWarningMsg("⚠️ Please 'Save as PDF' first. The AI needs PDF format to see your charts and diagrams.");
+            // Reset input
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+
+        setUploadStatus('uploading');
 
         // Pass context data to the uploader
-        // We use "null" string to prevent undefined from being dropped
-        console.log(`[UploadButton] Starting upload. Course: ${courseId}, Folder: ${folderId}`);
         await startUpload(files, {
             courseId,
             folderId: folderId || "null"
@@ -45,12 +57,17 @@ export default function UploadButton({ courseId, folderId }: UploadButtonProps) 
     };
 
     return (
-        <div>
+        <div className="flex flex-col items-end gap-2">
+            {warningMsg && (
+                <div className="text-xs font-bold text-orange-500 bg-orange-50 px-3 py-1 rounded-lg animate-in fade-in slide-in-from-right-2">
+                    {warningMsg}
+                </div>
+            )}
             <input
                 type="file"
                 ref={fileInputRef}
                 className="hidden"
-                accept=".pdf"
+                accept=".pdf,image/*,audio/*,video/*,.pptx,.ppt"
                 onChange={handleFileSelect}
             />
 
@@ -76,7 +93,7 @@ export default function UploadButton({ courseId, folderId }: UploadButtonProps) 
                     {uploadStatus === 'uploading' ? 'Uploading...' :
                         uploadStatus === 'success' ? 'Done!' :
                             uploadStatus === 'error' ? 'Failed' :
-                                'Upload PDF'}
+                                'Upload Resources'}
                 </span>
             </button>
         </div>
