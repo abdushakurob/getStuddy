@@ -49,10 +49,6 @@ export default async function DashboardPage() {
                                             {data.mission.reasoning || "Focus on this topic to advance your goal."}
                                         </p>
                                         <div className="mt-4 flex items-center gap-3 text-sm text-gray-300">
-                                            <span className={`px-2 py-1 rounded-md bg-white/5 border border-white/10`}>
-                                                {data.mission.activityType?.toUpperCase() || "STUDY"}
-                                            </span>
-                                            <span>•</span>
                                             <span>{data.mission.isToday ? "Scheduled for Today" : `Coming up on ${formatDate(data.mission.dateString)}`}</span>
                                         </div>
                                     </>

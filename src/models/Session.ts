@@ -35,15 +35,33 @@ const SessionSchema = new mongoose.Schema({
         enum: ['active', 'completed', 'abandoned'],
         default: 'active'
     },
+    currentResourceId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Resource'
+    },
     // The "Transcript" tracks the interaction in the workspace
-    // This is separate from the main chat history, as it's specific to this work session
     transcript: [{
         role: { type: String, enum: ['user', 'assistant', 'system'], required: true },
         content: String,
-        widgetType: { type: String, enum: ['text', 'quiz', 'flashcard', 'explanation'], default: 'text' },
+        widgetType: { type: String, enum: ['text', 'quiz', 'flashcard', 'explanation', 'concept', 'check'], default: 'text' },
         widgetData: mongoose.Schema.Types.Mixed,
-        timestamp: { type: Date, default: Date.now }
-    }]
+        timestamp: { type: Date, default: Date.now },
+        toolCalls: [{
+            tool: String,
+            args: mongoose.Schema.Types.Mixed,
+            result: mongoose.Schema.Types.Mixed
+        }],
+        suggestedActions: [{
+            label: String,
+            intent: String,
+            priority: { type: String, enum: ['primary', 'secondary'] }
+        }]
+    }],
+    progress: {
+        conceptsCovered: [String],
+        quizzesTaken: { type: Number, default: 0 },
+        quizzesCorrect: { type: Number, default: 0 }
+    }
 }, { timestamps: true });
 
 export default mongoose.models.Session || mongoose.model('Session', SessionSchema);

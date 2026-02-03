@@ -51,7 +51,6 @@ export async function getDashboardData() {
         },
         mission: activeTask ? {
             topicName: activeTask.topicName,
-            activityType: activeTask.activityType,
             reasoning: activeTask.reasoning,
             dateString: activeTask.date.toISOString(),
             isToday

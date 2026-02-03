@@ -15,11 +15,19 @@ interface Message {
     planData?: any;
 }
 
-export default function NegotiationChat({ courseId }: { courseId: string }) {
+interface PlanData {
+    phase: string;
+    goal: string;
+    nextTask: { topic: string; date: string };
+    startUrl: string;
+}
+
+export default function NegotiationChat({ courseId, existingPlan }: { courseId: string; existingPlan?: PlanData | null }) {
     const router = useRouter();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [activePlan, setActivePlan] = useState<PlanData | null>(existingPlan || null);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     // Initial Load
@@ -49,6 +57,9 @@ export default function NegotiationChat({ courseId }: { courseId: string }) {
         setInput('');
         setIsLoading(true);
 
+        // Hide plan card while adjusting (until new plan is locked)
+        setActivePlan(null);
+
         try {
             const response = await sendMessage(courseId, userMsg.content);
 
@@ -63,7 +74,10 @@ export default function NegotiationChat({ courseId }: { courseId: string }) {
                 newAiMsg
             ]);
 
-            // Note: We deliberately removed auto-redirect. Users click the Card now.
+            // Update activePlan if a new plan was committed
+            if (response.committedPlan) {
+                setActivePlan(response.committedPlan);
+            }
 
         } catch (error) {
             console.error(error);
@@ -90,7 +104,8 @@ export default function NegotiationChat({ courseId }: { courseId: string }) {
 
             {/* Messages Area */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#F9FAFB]">
-                {messages.length === 0 && (
+
+                {messages.length === 0 && !activePlan && (
                     <div className="flex flex-col items-center justify-center h-full text-center opacity-50 px-10">
                         <Bot size={48} className="text-[#4C8233] mb-4" />
                         <p className="font-bold text-gray-400">
@@ -152,6 +167,36 @@ export default function NegotiationChat({ courseId }: { courseId: string }) {
 
                     </div>
                 ))}
+
+                {/* Typing Indicator Bubble */}
+                {isLoading && (
+                    <div className="flex items-start gap-4">
+                        <div className="w-8 h-8 rounded-full flex shrink-0 items-center justify-center bg-[#E3F2DF] text-[#4C8233]">
+                            <Bot size={16} />
+                        </div>
+                        <div className="bg-white border border-gray-100 shadow-sm rounded-3xl rounded-tl-sm px-5 py-4">
+                            <div className="flex gap-1.5">
+                                <div className="w-2 h-2 bg-[#4C8233] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                <div className="w-2 h-2 bg-[#4C8233] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                <div className="w-2 h-2 bg-[#4C8233] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Show plan card as last message from agent */}
+                {activePlan && (
+                    <div className="flex flex-col items-start">
+                        <div className="flex gap-4">
+                            <div className="w-8 h-8 rounded-full flex shrink-0 items-center justify-center bg-[#E3F2DF] text-[#4C8233]">
+                                <Bot size={16} />
+                            </div>
+                            <div className="max-w-[85%]">
+                                <PlanSummaryCard plan={activePlan} />
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Input Area */}

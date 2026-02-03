@@ -1,136 +1,152 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Sparkles, Zap, HelpCircle, CheckCircle, ArrowRight, Lightbulb } from 'lucide-react';
+import { Sparkles, HelpCircle, Loader2 } from 'lucide-react';
+import { sendMessageToDirector, handleActionIntent } from '@/lib/actions-director';
+import PlanAdjustmentCard from './PlanAdjustmentCard';
 
-interface CanvasItem {
-    id: string;
+interface TranscriptItem {
+    _id?: string;
     role: 'user' | 'assistant' | 'system';
-    type: 'concept' | 'check' | 'note' | 'quiz' | 'flashcard';
-    content: any;
-    timestamp: string;
+    content: string;
+    widgetType?: string;
+    widgetData?: any;
+    toolResults?: any[];  // Add tool results
+    suggestedActions?: Array<{
+        label: string;
+        intent: string;
+        priority: 'primary' | 'secondary';
+    }>;
 }
 
-export default function AgentCanvas({ sessionId, initialTranscript = [] }: { sessionId: string, initialTranscript?: any[] }) {
-    const [items, setItems] = useState<CanvasItem[]>([
-        {
-            id: 'init',
-            role: 'assistant',
-            type: 'concept',
-            content: {
-                title: "Lists & Tuples",
-                body: "Let's start with the fundamentals. Lists are ordered collections that can change, while tuples are immutable.",
-                action: "Ready to dive in?"
-            },
-            timestamp: new Date().toISOString()
-        },
-        ...initialTranscript
-    ]);
-    const [companionStatus, setCompanionStatus] = useState<string>("Ready when you are");
-    const [showInput, setShowInput] = useState(false);
+export default function AgentCanvas({ sessionId, initialTranscript = [] }: { sessionId: string, initialTranscript?: TranscriptItem[] }) {
+    const [transcript, setTranscript] = useState<TranscriptItem[]>(initialTranscript);
     const [input, setInput] = useState('');
+    const [showInput, setShowInput] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [companionStatus, setCompanionStatus] = useState<string>("Ready when you are");
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [items]);
+    }, [transcript]);
 
-    const handleAction = (action: string) => {
+    const handleSendMessage = async (message: string) => {
+        if (!message.trim()) return;
+
+        setLoading(true);
         setCompanionStatus("Thinking...");
 
-        setTimeout(() => {
-            const responses: Record<string, CanvasItem> = {
-                'explain': {
-                    id: Date.now().toString(),
-                    role: 'assistant',
-                    type: 'concept',
-                    content: {
-                        title: "Here's how it works",
-                        body: "Think of a list like a shopping cart - you can add, remove, or rearrange items. A tuple is like a sealed package - once created, it stays that way.",
-                        action: "Make sense?"
-                    },
-                    timestamp: new Date().toISOString()
-                },
-                'example': {
-                    id: Date.now().toString(),
-                    role: 'assistant',
-                    type: 'concept',
-                    content: {
-                        title: "Let me show you",
-                        body: "my_list = [1, 2, 3]\nmy_list.append(4)  # Works!\n\nmy_tuple = (1, 2, 3)\nmy_tuple.append(4)  # Error!",
-                        action: "Try it yourself"
-                    },
-                    timestamp: new Date().toISOString()
-                },
-                'quiz': {
-                    id: Date.now().toString(),
-                    role: 'assistant',
-                    type: 'check',
-                    content: {
-                        question: "Which one can you modify after creation?",
-                        options: ["List", "Tuple", "Both", "Neither"]
-                    },
-                    timestamp: new Date().toISOString()
-                }
-            };
+        // Optimistic UI update
+        setTranscript(prev => [...prev, {
+            role: 'user',
+            content: message
+        }]);
+        setInput('');
+        setShowInput(false);
 
-            setItems(prev => [...prev, responses[action] || responses['explain']]);
+        try {
+            const response = await sendMessageToDirector(sessionId, message);
+
+            setTranscript(prev => [...prev, {
+                role: 'assistant',
+                content: response.message,
+                suggestedActions: response.suggestedActions,
+                toolResults: response.toolResults  // Include tool results
+            }]);
+
             setCompanionStatus("I'm here if you need me");
-        }, 800);
+        } catch (error) {
+            console.error('Director error:', error);
+            setCompanionStatus("Something went wrong");
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const renderWidget = (item: CanvasItem) => {
-        if (item.type === 'concept') {
+    const handleAction = async (intent: string) => {
+        setLoading(true);
+        setCompanionStatus("Processing...");
+
+        try {
+            const response = await handleActionIntent(sessionId, intent);
+
+            setTranscript(prev => [...prev, {
+                role: 'assistant',
+                content: response.message,
+                suggestedActions: response.suggestedActions,
+                toolResults: response.toolResults  // Include tool results
+            }]);
+
+            setCompanionStatus("I'm here if you need me");
+        } catch (error) {
+            console.error('Action error:', error);
+            setCompanionStatus("Something went wrong");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const renderMessage = (item: TranscriptItem, index: number) => {
+        if (item.role === 'user') {
             return (
-                <div key={item.id} className="bg-white rounded-[24px] p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                    <div className="flex items-start gap-3 mb-3">
-                        <div className="w-8 h-8 rounded-full bg-[#A3B18A]/20 flex items-center justify-center shrink-0">
-                            <Lightbulb size={16} className="text-[#4C8233]" />
+                <div key={index} className="flex justify-end">
+                    <div className="bg-gray-100 rounded-2xl px-4 py-3 max-w-[80%]">
+                        <p className="text-sm text-gray-800">{item.content}</p>
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div key={index} className="space-y-3">
+                <div className="bg-white rounded-[24px] p-5 border border-gray-100 shadow-sm">
+                    <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#4C8233] to-[#2F4F2F] flex items-center justify-center shrink-0">
+                            <Sparkles size={16} className="text-white" />
                         </div>
                         <div className="flex-1">
-                            <h4 className="font-bold text-gray-900 mb-2">{item.content.title}</h4>
-                            <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-wrap font-mono">{item.content.body}</p>
+                            <p className="text-sm text-gray-700 leading-relaxed">{item.content}</p>
                         </div>
                     </div>
-                    {item.content.action && (
-                        <button
-                            onClick={() => handleAction('next')}
-                            className="mt-4 w-full py-2 bg-gray-50 hover:bg-[#A3B18A]/10 text-gray-700 hover:text-[#4C8233] rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                        >
-                            <span>{item.content.action}</span>
-                            <ArrowRight size={14} />
-                        </button>
+
+                    {/* Dynamic AI-Generated Actions */}
+                    {item.suggestedActions && item.suggestedActions.length > 0 && (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                            {item.suggestedActions.map((action, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => handleAction(action.intent)}
+                                    disabled={loading}
+                                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all disabled:opacity-50 ${action.priority === 'primary'
+                                        ? 'bg-[#4C8233] hover:bg-[#2F4F2F] text-white'
+                                        : 'bg-gray-50 hover:bg-[#A3B18A]/10 border border-gray-200 hover:border-[#84A98C] text-gray-700'
+                                        }`}
+                                >
+                                    {action.label}
+                                </button>
+                            ))}
+                        </div>
                     )}
                 </div>
-            );
-        }
 
-        if (item.type === 'check') {
-            return (
-                <div key={item.id} className="bg-gradient-to-br from-[#84A98C]/10 to-[#A3B18A]/10 rounded-[24px] p-6 border border-[#84A98C]/20">
-                    <div className="flex items-center gap-2 mb-4">
-                        <Zap size={18} className="text-[#4C8233]" />
-                        <h4 className="font-bold text-[#2F4F2F]">Quick Check</h4>
-                    </div>
-                    <p className="text-gray-800 font-medium mb-4">{item.content.question}</p>
-                    <div className="space-y-2">
-                        {item.content.options.map((opt: string, idx: number) => (
-                            <button
-                                key={idx}
-                                onClick={() => handleAction('answer')}
-                                className="w-full p-3 bg-white hover:bg-[#A3B18A]/10 border border-gray-200 hover:border-[#4C8233] rounded-xl text-left text-sm font-medium transition-all"
-                            >
-                                {opt}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            );
-        }
-
-        return null;
+                {/* Plan Adjustment Cards */}
+                {item.toolResults?.map((result: any, idx: number) => {
+                    if (result?.type === 'plan_adjustment') {
+                        return (
+                            <PlanAdjustmentCard
+                                key={`adjustment-${idx}`}
+                                sessionId={sessionId}
+                                adjustment={result}
+                            />
+                        );
+                    }
+                    return null;
+                })}
+            </div>
+        );
     };
 
     return (
@@ -140,8 +156,8 @@ export default function AgentCanvas({ sessionId, initialTranscript = [] }: { ses
             <div className="p-6 border-b border-gray-100 bg-white shrink-0">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h3 className="font-bold text-gray-900 text-lg">Lists & Tuples</h3>
-                        <p className="text-xs text-gray-500 mt-0.5">Chapter 3 • Python Basics</p>
+                        <h3 className="font-bold text-gray-900 text-lg">Learning Session</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">Your companion is ready</p>
                     </div>
                     <div className="relative w-12 h-12">
                         <svg className="transform -rotate-90 w-12 h-12">
@@ -156,12 +172,18 @@ export default function AgentCanvas({ sessionId, initialTranscript = [] }: { ses
                 </div>
             </div>
 
-            {/* Companion Workspace - Scrollable */}
+            {/* Transcript - Scrollable */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
-                {items.map(renderWidget)}
+                {transcript.map(renderMessage)}
+                {loading && (
+                    <div className="flex items-center gap-2 text-gray-500">
+                        <Loader2 size={16} className="animate-spin" />
+                        <span className="text-sm">{companionStatus}</span>
+                    </div>
+                )}
             </div>
 
-            {/* Companion Presence & Actions */}
+            {/* Companion Presence & Input */}
             <div className="p-6 bg-white border-t border-gray-100 shrink-0">
                 {/* Companion Avatar & Status */}
                 <div className="flex items-center gap-3 mb-4">
@@ -176,62 +198,34 @@ export default function AgentCanvas({ sessionId, initialTranscript = [] }: { ses
                     </div>
                 </div>
 
-                {/* Action Bar */}
-                {!showInput ? (
-                    <div className="grid grid-cols-2 gap-2">
-                        <button
-                            onClick={() => handleAction('explain')}
-                            className="p-3 bg-gray-50 hover:bg-[#A3B18A]/10 border border-gray-200 hover:border-[#84A98C] rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2"
-                        >
-                            <Lightbulb size={16} />
-                            <span>Explain this</span>
-                        </button>
-                        <button
-                            onClick={() => handleAction('example')}
-                            className="p-3 bg-gray-50 hover:bg-[#A3B18A]/10 border border-gray-200 hover:border-[#84A98C] rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2"
-                        >
-                            <Sparkles size={16} />
-                            <span>Show example</span>
-                        </button>
-                        <button
-                            onClick={() => handleAction('quiz')}
-                            className="p-3 bg-gray-50 hover:bg-[#A3B18A]/10 border border-gray-200 hover:border-[#84A98C] rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-2"
-                        >
-                            <Zap size={16} />
-                            <span>Quiz me</span>
-                        </button>
-                        <button
-                            onClick={() => handleAction('next')}
-                            className="p-3 bg-[#4C8233] hover:bg-[#2F4F2F] text-white rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
-                        >
-                            <CheckCircle size={16} />
-                            <span>I got it</span>
-                        </button>
-                    </div>
-                ) : (
+                {/* Input Area */}
+                {showInput ? (
                     <div className="flex gap-2">
                         <input
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage(input)}
                             placeholder="Ask me anything..."
                             className="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-[#4C8233] focus:bg-white transition-all"
+                            autoFocus
                         />
                         <button
-                            onClick={() => setShowInput(false)}
-                            className="px-4 py-3 bg-gray-200 hover:bg-gray-300 rounded-xl font-medium transition-colors"
+                            onClick={() => handleSendMessage(input)}
+                            disabled={!input.trim() || loading}
+                            className="px-6 py-3 bg-[#4C8233] hover:bg-[#2F4F2F] text-white rounded-xl font-medium transition-colors disabled:opacity-50"
                         >
-                            Cancel
+                            Send
                         </button>
                     </div>
+                ) : (
+                    <button
+                        onClick={() => setShowInput(true)}
+                        className="w-full py-3 text-sm text-gray-500 hover:text-gray-700 font-medium transition-colors flex items-center justify-center gap-2 border border-gray-200 rounded-xl hover:bg-gray-50"
+                    >
+                        <HelpCircle size={16} />
+                        <span>Ask something or share your thoughts</span>
+                    </button>
                 )}
-
-                <button
-                    onClick={() => setShowInput(!showInput)}
-                    className="w-full mt-2 py-2 text-xs text-gray-400 hover:text-gray-600 font-medium transition-colors flex items-center justify-center gap-1"
-                >
-                    <HelpCircle size={14} />
-                    <span>{showInput ? 'Use quick actions' : 'Ask something specific'}</span>
-                </button>
             </div>
         </div>
     );

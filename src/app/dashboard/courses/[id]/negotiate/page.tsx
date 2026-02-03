@@ -1,6 +1,7 @@
 import NegotiationChat from '@/components/chat/NegotiationChat';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { getActivePlan } from '@/lib/actions-chat';
 
 type Props = {
     params: Promise<{ id: string }>;
@@ -8,6 +9,9 @@ type Props = {
 
 export default async function NegotiationPage({ params }: Props) {
     const { id: courseId } = await params;
+
+    // Check for existing plan
+    const existingPlan = await getActivePlan(courseId);
 
     return (
         <div className="h-full flex flex-col bg-white overflow-hidden">
@@ -24,7 +28,7 @@ export default async function NegotiationPage({ params }: Props) {
 
             {/* Content */}
             <div className="flex-1 overflow-hidden">
-                <NegotiationChat courseId={courseId} />
+                <NegotiationChat courseId={courseId} existingPlan={existingPlan} />
             </div>
         </div>
     );

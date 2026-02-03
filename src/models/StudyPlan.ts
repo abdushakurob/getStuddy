@@ -28,8 +28,7 @@ export interface IStudyPlan {
     schedule: {
         date: Date;
         topicName: string;
-        activityType: 'read' | 'quiz' | 'flashcards' | 'review';
-        status: 'pending' | 'completed' | 'skipped';
+        status: 'pending' | 'in-progress' | 'completed' | 'skipped';
         reasoning?: string; // Why this task today?
     }[];
 
@@ -55,14 +54,9 @@ const StudyPlanSchema = new Schema<IStudyPlan>(
             {
                 date: { type: Date, required: true },
                 topicName: { type: String, required: true },
-                activityType: {
-                    type: String,
-                    enum: ['read', 'quiz', 'flashcards', 'review'],
-                    default: 'read'
-                },
                 status: {
                     type: String,
-                    enum: ['pending', 'completed', 'skipped'],
+                    enum: ['pending', 'in-progress', 'completed', 'skipped'],
                     default: 'pending'
                 },
                 reasoning: String

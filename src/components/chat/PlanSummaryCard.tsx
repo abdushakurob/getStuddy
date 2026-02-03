@@ -38,7 +38,7 @@ export default function PlanSummaryCard({ plan }: PlanSummaryCardProps) {
                 <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 flex items-start gap-3">
                     <Calendar size={18} className="text-gray-400 mt-0.5" />
                     <div>
-                        <p className="text-xs font-bold text-gray-500 uppercase">First Mission</p>
+                        <p className="text-xs font-bold text-gray-500 uppercase">Next Mission</p>
                         <p className="font-bold text-gray-800">{plan.nextTask.topic}</p>
                         <p className="text-xs text-gray-500">{plan.nextTask.date}</p>
                     </div>

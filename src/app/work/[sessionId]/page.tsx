@@ -15,12 +15,14 @@ export default async function WorkspacePage({ params }: { params: Promise<{ sess
     const workSession = await getSession(sessionId);
     if (!workSession) notFound();
 
-    // Map Transcript
+    // Map Transcript with suggested actions
     const transcript = (workSession.transcript || []).map((t: any) => ({
-        id: t._id,
+        _id: t._id?.toString(),
         role: t.role,
-        type: t.widgetType || 'text',
-        content: t.widgetData || t.content,
+        content: t.content,
+        widgetType: t.widgetType,
+        widgetData: t.widgetData,
+        suggestedActions: t.suggestedActions,
         timestamp: t.timestamp
     }));
 

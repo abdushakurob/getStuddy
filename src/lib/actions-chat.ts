@@ -28,6 +28,47 @@ export async function getChatHistory(courseId: string) {
     }));
 }
 
+export async function getActivePlan(courseId: string) {
+    const session = await auth();
+    if (!session?.user?.id) return null;
+
+    await dbConnect();
+
+    const plan = await StudyPlan.findOne({
+        courseId,
+        userId: session.user.id,
+        status: 'active'
+    }).lean();
+
+    if (!plan) return null;
+
+    // Find the next pending task (not completed ones)
+    const nextTask = plan.schedule?.find((t: any) => t.status === 'pending' || t.status === 'in-progress');
+    const completedCount = plan.schedule?.filter((t: any) => t.status === 'completed').length || 0;
+
+    // Get or create a session for the next task
+    let sessionId = '';
+    try {
+        if (nextTask) {
+            sessionId = await startSession(courseId, (plan._id as any).toString(), nextTask.topicName);
+        }
+    } catch (e) {
+        // Session might already exist
+    }
+
+    return {
+        phase: plan.phase,
+        goal: plan.goal,
+        nextTask: nextTask ? {
+            topic: nextTask.topicName,
+            date: new Date(nextTask.date).toLocaleDateString()
+        } : { topic: 'All missions completed!', date: '' },
+        startUrl: sessionId ? `/work/${sessionId}` : `/dashboard/courses/${courseId}`,
+        completedCount,
+        totalCount: plan.schedule?.length || 0
+    };
+}
+
 export async function sendMessage(courseId: string, content: string) {
     const session = await auth();
     if (!session?.user?.id) throw new Error('Unauthorized');
@@ -69,8 +110,29 @@ export async function sendMessage(courseId: string, content: string) {
         });
     }
 
+    // 2.6 Fetch CURRENT PLAN PROGRESS (So LLM knows which missions are done)
+    const currentPlan = await StudyPlan.findOne({
+        userId: session.user.id,
+        courseId,
+        status: 'active'
+    }).select('goal phase schedule').lean();
+
+    let planProgressContext = "";
+    if (currentPlan) {
+        const completed = currentPlan.schedule?.filter((t: any) => t.status === 'completed') || [];
+        const pending = currentPlan.schedule?.filter((t: any) => t.status === 'pending' || t.status === 'in-progress') || [];
+
+        planProgressContext = `\n\n[CURRENT PLAN PROGRESS]
+Goal: ${currentPlan.goal}
+Phase: ${currentPlan.phase}
+Completed Missions (${completed.length}): ${completed.map((t: any) => t.topicName).join(', ') || 'None yet'}
+Remaining Missions (${pending.length}): ${pending.map((t: any) => `${t.topicName} (${new Date(t.date).toLocaleDateString()})`).join(', ') || 'All done!'}
+
+IMPORTANT: When adjusting the plan, do NOT modify or reschedule completed missions. Only adjust remaining/pending missions.`;
+    }
+
     const docContext = resources.map((r: any) => `[Document: ${r.title}]\n${r.knowledgeBase?.substring(0, 5000)}`).join("\n\n");
-    const contextText = `${docContext}${globalContext}`;
+    const contextText = `${docContext}${globalContext}${planProgressContext}`;
 
     // 3. Fetch History
 
@@ -102,19 +164,36 @@ export async function sendMessage(courseId: string, content: string) {
         const schedule = args.tasks.map((t: any) => ({
             date: new Date(t.dateString),
             topicName: t.topicName,
-            activityType: t.activityType || 'read',
             status: 'pending',
             reasoning: t.reasoning
         }));
 
-        const newPlan = await StudyPlan.create({
+        // Check if user already has an active plan for this course
+        let existingPlan = await StudyPlan.findOne({
             courseId,
             userId: session.user.id,
-            goal: args.goal,
-            phase: args.phase,
-            schedule: schedule,
             status: 'active'
         });
+
+        let newPlan;
+        if (existingPlan) {
+            // Update existing plan
+            existingPlan.goal = args.goal;
+            existingPlan.phase = args.phase;
+            existingPlan.schedule = schedule;
+            await existingPlan.save();
+            newPlan = existingPlan;
+        } else {
+            // Create new plan
+            newPlan = await StudyPlan.create({
+                courseId,
+                userId: session.user.id,
+                goal: args.goal,
+                phase: args.phase,
+                schedule: schedule,
+                status: 'active'
+            });
+        }
 
         const firstTask = schedule[0];
         let sessionId = "";
@@ -134,11 +213,11 @@ export async function sendMessage(courseId: string, content: string) {
                 startUrl: redirectUrl
             };
 
-            finalAiText = `✅ **Plan Locked!**\n\nI have saved your strategy. You can start the mission below or continue chatting to adjust details.`;
+            finalAiText = `**Plan Locked!**\n\nI have saved your strategy. You can start the mission below or continue chatting to adjust details.`;
 
         } catch (e) {
             console.error("Failed to auto-start session:", e);
-            finalAiText = `✅ **Plan Locked!**\n\nI created the plan, but couldn't auto-start the session. Please check your Dashboard.`;
+            finalAiText = `**Plan Locked!**\n\nI created the plan, but couldn't auto-start the session. Please check your Dashboard.`;
         }
 
     } else if (aiResponse.type === 'tool_call') {

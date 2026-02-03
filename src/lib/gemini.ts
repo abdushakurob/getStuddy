@@ -32,10 +32,9 @@ const model = genAI.getGenerativeModel({
                                     properties: {
                                         dateString: { type: SchemaType.STRING, description: "ISO Date String (YYYY-MM-DD) for the task" },
                                         topicName: { type: SchemaType.STRING, description: "What to study" },
-                                        activityType: { type: SchemaType.STRING, description: "One of: 'read', 'quiz', 'flashcards'" },
                                         reasoning: { type: SchemaType.STRING, description: "Why this task on this day?" }
                                     },
-                                    required: ["dateString", "topicName", "activityType"]
+                                    required: ["dateString", "topicName"]
                                 }
                             }
                         },

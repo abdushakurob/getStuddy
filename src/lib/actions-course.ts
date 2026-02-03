@@ -184,8 +184,7 @@ export async function getCourseContent(courseId: string, folderId: string | null
                 id: t._id?.toString(),
                 topicName: t.topicName,
                 date: t.date.toISOString(),
-                status: t.status,
-                activityType: t.activityType
+                status: t.status
             }))
         } : null
     };
