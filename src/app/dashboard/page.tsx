@@ -1,7 +1,7 @@
 import { auth } from '@/auth';
 import { Calendar, Flame, Zap, ArrowRight, Clock, Target, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
-import { getDashboardData } from '@/lib/actions-dashboard';
+import { getDashboardData, continueMission } from '@/lib/actions-dashboard';
 
 export default async function DashboardPage() {
     const session = await auth();
@@ -69,10 +69,15 @@ export default async function DashboardPage() {
 
                         <div className="mt-auto">
                             {data?.hasPlan ? (
-                                <button className="inline-flex items-center gap-2 px-6 py-3 bg-[#4C8233] text-white rounded-2xl font-bold hover:bg-[#3D6A29] transition-colors w-full md:w-auto justify-center">
-                                    <span>Start Mission</span>
-                                    <ArrowRight size={18} />
-                                </button>
+                                <form action={continueMission}>
+                                    <button
+                                        type="submit"
+                                        className="inline-flex items-center gap-2 px-6 py-3 bg-[#4C8233] text-white rounded-2xl font-bold hover:bg-[#3D6A29] transition-colors w-full md:w-auto justify-center"
+                                    >
+                                        <span>Go to Mission</span>
+                                        <ArrowRight size={18} />
+                                    </button>
+                                </form>
                             ) : (
                                 <Link href="/dashboard/courses" className="inline-flex items-center gap-2 px-6 py-3 bg-[#4C8233] text-white rounded-2xl font-bold hover:bg-[#3D6A29] transition-colors">
                                     <span>Go to Courses</span>

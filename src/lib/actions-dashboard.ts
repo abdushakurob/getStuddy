@@ -1,9 +1,10 @@
-
 'use server';
 
 import { auth } from '@/auth';
 import dbConnect from './db';
-import StudyPlan, { IStudyPlan } from '@/models/StudyPlan';
+import StudyPlan from '@/models/StudyPlan';
+import { startSession } from './actions-session';
+import { redirect } from 'next/navigation';
 
 export async function getDashboardData() {
     const session = await auth();
@@ -11,13 +12,13 @@ export async function getDashboardData() {
 
     await dbConnect();
 
-    // 1. Fetch Active Plan (The latest one)
+    // 1. Fetch Active Plan (The latest ONE)
     // We populate the course details to get the color/title
     const plan = await StudyPlan.findOne({
         userId: session.user.id,
         status: 'active'
     })
-        .sort({ createdAt: -1 })
+        .sort({ updatedAt: -1 })
         .populate('courseId', 'title color')
         .lean();
 
@@ -29,41 +30,65 @@ export async function getDashboardData() {
         };
     }
 
-    // 2. Find Today's Mission
+    // 2. Find The Next Mission (First Pending Task)
+    // We ignore dates for ordering, just grab the first uncompleted one.
+    // If all done, grab the last one? Or just the first one.
+    const schedule = plan.schedule || [];
+    const activeTask = schedule.find((t: any) => t.status === 'pending') || schedule[0];
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
-    const schedule = plan.schedule || [];
-
-    // Find task for today
-    const todaysTask = schedule.find((t: any) => {
-        const tDate = new Date(t.date);
-        tDate.setHours(0, 0, 0, 0);
-        return tDate.getTime() === today.getTime();
-    });
-
-    // If no task today, find the NEXT task
-    const nextTask = !todaysTask ? schedule.find((t: any) => {
-        const tDate = new Date(t.date);
-        tDate.setHours(0, 0, 0, 0);
-        return tDate.getTime() > today.getTime();
-    }) : null;
-
-    const activeMission = todaysTask || nextTask;
+    const taskDate = new Date(activeTask.date);
+    taskDate.setHours(0, 0, 0, 0);
+    const isToday = taskDate.getTime() === today.getTime();
 
     return {
         hasPlan: true,
         planId: plan._id.toString(),
-        course: plan.courseId, // { title, color }
-        mission: activeMission ? {
-            ...activeMission,
-            isToday: !!todaysTask, // Boolean flag
-            dateString: activeMission.date.toISOString()
+        course: {
+            title: plan.courseId?.title || "Course",
+            color: plan.courseId?.color || "#4C8233"
+        },
+        mission: activeTask ? {
+            topicName: activeTask.topicName,
+            activityType: activeTask.activityType,
+            reasoning: activeTask.reasoning,
+            dateString: activeTask.date.toISOString(),
+            isToday
         } : null,
         stats: {
-            streak: 0, // TODO: Implement Streak Logic
-            xp: 0,     // TODO: Implement XP Logic
+            streak: 0,
+            xp: 0,
             progress: plan.progress || 0
         }
     };
+}
+
+// ACTION: Start the Mission (Redirects to Workspace)
+export async function continueMission() {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error("Unauthorized");
+
+    await dbConnect();
+
+    // Get Active Plan
+    const plan = await StudyPlan.findOne({
+        userId: session.user.id,
+        status: 'active'
+    }).sort({ updatedAt: -1 });
+
+    if (!plan) redirect('/dashboard/courses');
+
+    // Find Task
+    const schedule = plan.schedule || [];
+    const activeTask = schedule.find((t: any) => t.status === 'pending') || schedule[0];
+
+    // Start Session
+    const sessionId = await startSession(
+        plan.courseId.toString(),
+        plan._id.toString(),
+        activeTask.topicName
+    );
+
+    redirect(`/work/${sessionId}`);
 }

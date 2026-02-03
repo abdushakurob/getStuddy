@@ -5,6 +5,7 @@ import dbConnect from './db';
 import Course from '@/models/Course';
 import Folder from '@/models/Folder';
 import Resource from '@/models/Resource';
+import StudyPlan from '@/models/StudyPlan';
 import { revalidatePath } from 'next/cache';
 import mongoose from 'mongoose';
 
@@ -150,8 +151,19 @@ export async function getCourseContent(courseId: string, folderId: string | null
     // Prepend Course Root
     navigation.unshift({ id: null, name: (course as any).title });
 
+    // Fetch Active Plan
+    const activePlan = await StudyPlan.findOne({
+        courseId,
+        userId: session.user.id,
+        status: 'active'
+    }).sort({ createdAt: -1 }).lean();
+
     return {
-        folders: folders.map((f: any) => ({ id: f._id.toString(), name: f.name, parentId: f.parentId?.toString() })),
+        folders: folders.map((f: any) => ({
+            id: f._id.toString(),
+            name: f.name,
+            parentId: f.parentId?.toString()
+        })),
         resources: resources.map((r: any) => ({
             id: r._id.toString(),
             title: r.title,
@@ -159,7 +171,22 @@ export async function getCourseContent(courseId: string, folderId: string | null
             fileUrl: r.fileUrl,
             status: r.status
         })),
-        navigation,
-        courseTitle: (course as any).title
+        navigation: navigation.map((n: any) => ({
+            id: n.id?.toString() || null,
+            name: n.name
+        })),
+        courseTitle: (course as any).title,
+        activePlan: activePlan ? {
+            id: activePlan._id.toString(),
+            goal: activePlan.goal,
+            phase: activePlan.phase,
+            schedule: (activePlan.schedule || []).map((t: any) => ({
+                id: t._id?.toString(),
+                topicName: t.topicName,
+                date: t.date.toISOString(),
+                status: t.status,
+                activityType: t.activityType
+            }))
+        } : null
     };
 }

@@ -7,6 +7,7 @@ import Message from '@/models/Message';
 import Resource from '@/models/Resource';
 import StudyPlan from '@/models/StudyPlan';
 import { chatWithAgent } from './gemini';
+import { startSession } from './actions-session';
 import { revalidatePath } from 'next/cache';
 
 export async function getChatHistory(courseId: string) {
@@ -90,6 +91,9 @@ export async function sendMessage(courseId: string, content: string) {
 
     let finalAiText = "";
 
+    let committedPlan = null;
+    let redirectUrl = null;
+
     // Handle Tool Calls
     if (aiResponse.type === 'tool_call' && aiResponse.toolName === 'commit_study_plan') {
         const args = aiResponse.args as any;
@@ -103,7 +107,7 @@ export async function sendMessage(courseId: string, content: string) {
             reasoning: t.reasoning
         }));
 
-        await StudyPlan.create({
+        const newPlan = await StudyPlan.create({
             courseId,
             userId: session.user.id,
             goal: args.goal,
@@ -112,12 +116,36 @@ export async function sendMessage(courseId: string, content: string) {
             status: 'active'
         });
 
-        finalAiText = `✅ **Plan Locked!**\n\nI have saved your "${args.phase}" strategy to the Mission Control.\n\nYour first mission is: **${schedule[0].topicName}** on ${args.tasks[0].dateString}.\n\n(Go to the Dashboard to start)`;
+        const firstTask = schedule[0];
+        let sessionId = "";
+
+        try {
+            sessionId = await startSession(courseId, newPlan._id.toString(), firstTask.topicName);
+            redirectUrl = `/work/${sessionId}`;
+
+            // Structured Data for the UI Card
+            committedPlan = {
+                phase: args.phase,
+                goal: args.goal,
+                nextTask: {
+                    topic: firstTask.topicName,
+                    date: args.tasks[0].dateString
+                },
+                startUrl: redirectUrl
+            };
+
+            finalAiText = `✅ **Plan Locked!**\n\nI have saved your strategy. You can start the mission below or continue chatting to adjust details.`;
+
+        } catch (e) {
+            console.error("Failed to auto-start session:", e);
+            finalAiText = `✅ **Plan Locked!**\n\nI created the plan, but couldn't auto-start the session. Please check your Dashboard.`;
+        }
+
     } else if (aiResponse.type === 'tool_call') {
         finalAiText = "I tried to use a tool I don't know yet.";
     } else {
-        // Normal text
-        finalAiText = aiResponse.content || "";
+        // Normal text (ensure string)
+        finalAiText = typeof aiResponse.content === 'string' ? aiResponse.content : JSON.stringify(aiResponse.content);
     }
 
     // 6. Save AI Message
@@ -125,13 +153,16 @@ export async function sendMessage(courseId: string, content: string) {
         courseId,
         userId: session.user.id,
         role: 'assistant',
-        content: finalAiText
+        content: finalAiText,
+        // Optional: Save plan metadata in message if you extend schema
     });
 
     revalidatePath(`/dashboard/courses/${courseId}`);
 
     return {
         userMessage: { id: userMsg._id.toString(), role: 'user', content: userMsg.content },
-        aiMessage: { id: aiMsg._id.toString(), role: 'assistant', content: aiMsg.content }
+        aiMessage: { id: aiMsg._id.toString(), role: 'assistant', content: aiMsg.content },
+        committedPlan, // Send to Client
+        redirectUrl
     };
 }
