@@ -1,18 +1,22 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { Send, User as UserIcon, Bot, Loader2, Sparkles } from 'lucide-react';
-import { sendMessage, getChatHistory } from '@/lib/actions-chat';
+import { useState, useEffect, useRef } from 'react';
+import { getChatHistory, sendMessage } from '@/lib/actions-chat';
+import { Bot, User as UserIcon, Send, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import PlanSummaryCard from './PlanSummaryCard';
+import { useRouter } from 'next/navigation';
 
 interface Message {
     id: string;
     role: 'user' | 'assistant';
     content: string;
+    planData?: any;
 }
 
 export default function NegotiationChat({ courseId }: { courseId: string }) {
+    const router = useRouter();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -48,15 +52,21 @@ export default function NegotiationChat({ courseId }: { courseId: string }) {
         try {
             const response = await sendMessage(courseId, userMsg.content);
 
-            // Replace optimistic user msg with real one + add AI response
+            const newAiMsg: Message = {
+                ...response.aiMessage as Message,
+                planData: response.committedPlan
+            };
+
             setMessages(prev => [
                 ...prev.filter(m => m.id !== tempId),
                 response.userMessage as Message,
-                response.aiMessage as Message
+                newAiMsg
             ]);
+
+            // Note: We deliberately removed auto-redirect. Users click the Card now.
+
         } catch (error) {
             console.error(error);
-            // TODO: Error Toast
         } finally {
             setIsLoading(false);
         }
@@ -90,93 +100,89 @@ export default function NegotiationChat({ courseId }: { courseId: string }) {
                 )}
 
                 {messages.map((msg) => (
-                    <div
-                        key={msg.id}
-                        className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
-                    >
-                        {/* Avatar */}
-                        <div className={`w-8 h-8 rounded-full flex shrink-0 items-center justify-center ${msg.role === 'user' ? 'bg-gray-200' : 'bg-[#E3F2DF] text-[#4C8233]'}`}>
-                            {msg.role === 'user' ? <UserIcon size={14} /> : <Bot size={16} />}
-                        </div>
+                    <div className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`} key={msg.id}>
 
-                        {/* Bubble */}
-                        <div className={`
-                            max-w-[70%] p-4 rounded-3xl text-sm font-medium leading-relaxed
-                            ${msg.role === 'user'
-                                ? 'bg-[#1F2937] text-white rounded-tr-sm'
-                                : 'bg-white border border-gray-100 shadow-sm text-gray-700 rounded-tl-sm'
-                            }
-                        `}>
-                            {/* MARKDOWN RENDERING */}
-                            <div className={`prose prose-sm max-w-none break-words
+                        <div className={`flex gap-4 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                            {/* Avatar */}
+                            <div className={`w-8 h-8 rounded-full flex shrink-0 items-center justify-center ${msg.role === 'user' ? 'bg-gray-200' : 'bg-[#E3F2DF] text-[#4C8233]'}`}>
+                                {msg.role === 'user' ? <UserIcon size={14} /> : <Bot size={16} />}
+                            </div>
+
+                            {/* Bubble */}
+                            <div className={`
+                                max-w-[85%] p-4 rounded-3xl text-sm font-medium leading-relaxed
                                 ${msg.role === 'user'
-                                    ? 'prose-invert prose-p:text-white prose-headings:text-white'
-                                    : 'prose-headings:text-[#1F2937] prose-p:text-gray-600 prose-strong:text-[#4C8233]'
+                                    ? 'bg-[#1F2937] text-white rounded-tr-sm'
+                                    : 'bg-white border border-gray-100 shadow-sm text-gray-700 rounded-tl-sm'
                                 }
                             `}>
-                                <ReactMarkdown
-                                    remarkPlugins={[remarkGfm]}
-                                    components={{
-                                        // Custom link styling
-                                        a: ({ node, ...props }) => <a {...props} className="text-[#4C8233] underline hover:text-[#3D6A29]" target="_blank" rel="noopener noreferrer" />,
-                                        // Clean paragraphs
-                                        p: ({ node, ...props }) => <p {...props} className="mb-2 last:mb-0" />,
-                                        // styled lists
-                                        ul: ({ node, ...props }) => <ul {...props} className="list-disc pl-4 mb-2 space-y-1" />,
-                                        ol: ({ node, ...props }) => <ol {...props} className="list-decimal pl-4 mb-2 space-y-1" />,
-                                        // Styled Tables
-                                        table: ({ node, ...props }) => (
-                                            <div className="overflow-x-auto my-4 rounded-xl border border-gray-200">
-                                                <table {...props} className="w-full text-sm text-left" />
-                                            </div>
-                                        ),
-                                        thead: ({ node, ...props }) => <thead {...props} className="bg-gray-50 text-xs uppercase text-gray-500 font-bold" />,
-                                        th: ({ node, ...props }) => <th {...props} className="px-4 py-3 border-b border-gray-100" />,
-                                        td: ({ node, ...props }) => <td {...props} className="px-4 py-3 border-b border-gray-100 last:border-0" />,
-                                    }}
-                                >
-                                    {msg.content}
-                                </ReactMarkdown>
+                                <div className={`prose prose-sm max-w-none break-words
+                                    ${msg.role === 'user'
+                                        ? 'prose-invert prose-p:text-white prose-headings:text-white'
+                                        : 'prose-headings:text-[#1F2937] prose-p:text-gray-600 prose-strong:text-[#4C8233]'
+                                    }
+                                `}>
+                                    <ReactMarkdown
+                                        remarkPlugins={[remarkGfm]}
+                                        components={{
+                                            a: ({ node, ...props }) => <a {...props} className="text-blue-500 hover:underline" target="_blank" rel="noopener noreferrer" />,
+                                            // Table styles
+                                            table: ({ node, ...props }) => (
+                                                <div className="overflow-x-auto my-4 rounded-xl border border-gray-200">
+                                                    <table {...props} className="w-full text-sm text-left" />
+                                                </div>
+                                            ),
+                                            thead: ({ node, ...props }) => <thead {...props} className="bg-gray-50 text-xs uppercase text-gray-500 font-bold" />,
+                                            th: ({ node, ...props }) => <th {...props} className="px-4 py-3 border-b border-gray-100" />,
+                                            td: ({ node, ...props }) => <td {...props} className="px-4 py-3 border-b border-gray-100 last:border-0" />,
+                                        }}
+                                    >
+                                        {msg.content}
+                                    </ReactMarkdown>
+                                </div>
                             </div>
                         </div>
+
+                        {/* PLAN CARD (Render outside bubble, but indented) */}
+                        {msg.planData && (
+                            <div className="mt-2 ml-14 max-w-[85%]">
+                                <PlanSummaryCard plan={msg.planData} />
+                            </div>
+                        )}
+
                     </div>
                 ))}
-
-                {isLoading && (
-                    <div className="flex gap-4">
-                        <div className="w-8 h-8 rounded-full bg-[#E3F2DF] text-[#4C8233] flex shrink-0 items-center justify-center">
-                            <Bot size={16} />
-                        </div>
-                        <div className="bg-white border border-gray-100 p-4 rounded-3xl rounded-tl-sm shadow-sm flex items-center gap-2">
-                            <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" />
-                            <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce [animation-delay:0.2s]" />
-                            <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce [animation-delay:0.4s]" />
-                        </div>
-                    </div>
-                )}
             </div>
 
             {/* Input Area */}
-            <div className="p-4 bg-white border-t border-gray-100">
-                <form
-                    onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-                    className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-3xl p-2 pl-6 focus-within:border-[#4C8233] focus-within:ring-2 ring-[#4C8233]/10 transition-all shadow-inner"
-                >
+            <div className="p-6 bg-white border-t border-gray-100 z-10">
+                <div className="relative flex items-center shadow-lg shadow-gray-100 rounded-full bg-white border border-gray-200 overflow-hidden transition-all focus-within:ring-2 ring-[#4C8233]/20 ring-offset-2">
                     <input
-                        className="flex-1 bg-transparent border-none outline-none text-sm font-semibold text-gray-700 placeholder:text-gray-400"
-                        placeholder="Discuss your study plan..."
+                        className="flex-1 p-4 pl-6 outline-none text-gray-700 placeholder:text-gray-400 font-medium"
+                        placeholder="Type your strategy..."
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                         disabled={isLoading}
                     />
                     <button
-                        type="submit"
+                        onClick={handleSend}
                         disabled={!input.trim() || isLoading}
-                        className="w-10 h-10 bg-[#1F2937] text-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100 transition-all shadow-lg shadow-gray-900/20"
+                        className={`
+                            p-3 mr-2 rounded-full transition-all duration-300
+                            ${!input.trim()
+                                ? 'bg-gray-100 text-gray-300'
+                                : 'bg-[#1F2937] text-white hover:bg-black hover:scale-110 shadow-md'
+                            }
+                        `}
                     >
-                        {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                        {isLoading ? (
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                            <Send size={20} />
+                        )}
                     </button>
-                </form>
+                </div>
             </div>
         </div>
     );
