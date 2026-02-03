@@ -46,8 +46,8 @@ export async function getDashboardData() {
         hasPlan: true,
         planId: plan._id.toString(),
         course: {
-            title: plan.courseId?.title || "Course",
-            color: plan.courseId?.color || "#4C8233"
+            title: (plan.courseId as any)?.title || "Course",
+            color: (plan.courseId as any)?.color || "#4C8233"
         },
         mission: activeTask ? {
             topicName: activeTask.topicName,

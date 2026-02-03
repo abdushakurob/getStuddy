@@ -69,7 +69,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ sess
                     <div className="w-[55%] relative flex flex-col p-6 pr-3">
                         <div className="flex-1 bg-white rounded-[24px] shadow-sm border border-gray-100 overflow-hidden relative">
                             {/* Passed 'isLightMode' prop if supported, or rely on clean CSS */}
-                            <ResourceViewer resource={workSession.activeResource} />
+                            <ResourceViewer />
                         </div>
                     </div>
 
