@@ -58,9 +58,11 @@ const SessionSchema = new mongoose.Schema({
         }]
     }],
     progress: {
-        conceptsCovered: [String],
+        conceptsCovered: [String],       // Concepts the companion has covered with user
+        estimatedTotal: { type: Number, default: 5 },  // Estimated concepts for this topic (set by companion)
         quizzesTaken: { type: Number, default: 0 },
-        quizzesCorrect: { type: Number, default: 0 }
+        quizzesCorrect: { type: Number, default: 0 },
+        isComplete: { type: Boolean, default: false }  // Marked complete by user or companion
     }
 }, { timestamps: true });
 

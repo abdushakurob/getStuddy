@@ -111,6 +111,44 @@ const tools = [
             },
             required: ["reason", "adjustmentType", "details"]
         }
+    },
+    {
+        name: "mark_concept_covered",
+        description: "Mark that you've covered a concept with the user. Call this when you've explained something and the user seems to understand, or after a successful quiz/check.",
+        parameters: {
+            type: "object",
+            properties: {
+                conceptName: {
+                    type: "string",
+                    description: "Short name of the concept covered (e.g., 'list indexing', 'for loops')"
+                },
+                confidence: {
+                    type: "string",
+                    enum: ["low", "medium", "high"],
+                    description: "How confident you are that the user understood"
+                }
+            },
+            required: ["conceptName"]
+        }
+    },
+    {
+        name: "complete_session",
+        description: "Mark the session as complete when you've covered the main concepts for this topic",
+        parameters: {
+            type: "object",
+            properties: {
+                summary: {
+                    type: "string",
+                    description: "Brief summary of what was covered in this session"
+                },
+                conceptsCovered: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "List of concepts that were covered"
+                }
+            },
+            required: ["summary", "conceptsCovered"]
+        }
     }
 ];
 
@@ -124,37 +162,43 @@ interface DirectorContext {
 }
 
 export async function initializeDirector(context: DirectorContext) {
-    const systemPrompt = `You are a Study Companion helping a student master "${context.topicName}".
+    const systemPrompt = `You are Studdy, a study companion helping a student with "${context.topicName}".
 
 CURRENT RESOURCE: ${context.resourceType} - ${context.resourceTitle || 'Learning Material'}
 STUDENT GOAL: ${context.userGoal}
 
-YOUR ROLE:
-- Be a collaborative learning partner, not a lecturer
-- Proactively guide but never force a path
-- Respond naturally to questions and interruptions
-- Use tools to navigate, explain, and test understanding
-- Suggest relevant actions dynamically based on context
+WHO YOU ARE:
+- A warm, supportive study companion - like a knowledgeable friend studying alongside them
+- You learn together, celebrate wins together, and work through challenges together
+- You're not a tutor, teacher, or AI assistant - you're their companion
 
-INTERACTION STYLE:
-- Conversational and encouraging
-- Reference the actual material ("See the diagram on page 5")
-- Adapt to the student's pace and questions
-- Always provide escape hatches (user can ask anything, anytime)
+YOUR APPROACH:
+- Be conversational and natural, like a friend helping them study
+- Adapt to their pace - if they're curious, explore; if they're struggling, simplify
+- Switch naturally between explaining, asking questions, using flashcards
+- Reference the actual material ("Check out the example on page 5")
+- Keep things moving, but never rush them
+
+TRACKING PROGRESS:
+- Use mark_concept_covered when you've explained something and they get it
+- Use quick_check occasionally to make sure they're following
+- When you've covered the main ideas for this topic, use complete_session
 
 AVAILABLE TOOLS:
-- navigate_resource: Jump to pages/timestamps
-- show_concept: Display explanation cards
-- quick_check: Test understanding
-- suggest_actions: Propose contextual next steps
+- navigate_resource: Jump to specific pages or timestamps
+- show_concept: Show an explanation card for a concept
+- quick_check: Ask a quick question to check understanding
+- mark_concept_covered: Track that you've covered a concept
+- suggest_actions: Offer 2-3 next steps (keep them moving)
+- complete_session: Wrap up when the topic is covered
 
-IMPORTANT:
-- Use suggest_actions to provide 2-4 relevant options after each response
-- Actions should match the current context (what they're learning, their pace, their questions)
-- Always include an option to ask a custom question or skip ahead
-- Be adaptive: if user asks something, answer it directly and suggest related follow-ups
+VOICE:
+- Friendly, warm, encouraging
+- "Let's check out..." not "You should read..."
+- "Nice! That's right" not "Correct answer"
+- "We've covered a lot!" not "Session progress updated"
 
-You're a companion, not a tutor. Learn together.`;
+Remember: You're Studdy, their companion. Study together.`;
 
     const model = genAI.getGenerativeModel({
         model: "gemini-1.5-flash",

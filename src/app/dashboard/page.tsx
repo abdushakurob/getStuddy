@@ -23,7 +23,7 @@ export default async function DashboardPage() {
                     <h1 className="text-3xl font-black text-[#1F2937]">Good Morning, {user?.name?.split(' ')[0] || 'Scholar'}.</h1>
                 </div>
                 <p className="text-gray-500 font-medium">
-                    {data?.hasPlan ? "The Agent has prepared your mission." : "Ready to conquer your goals today?"}
+                    {data?.hasPlan ? "I've got your next topic ready." : "Ready to get started?"}
                 </p>
             </div>
 
@@ -39,7 +39,7 @@ export default async function DashboardPage() {
                             <div>
                                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full text-xs font-bold text-[#4C8233] mb-3 border border-white/5">
                                     <Zap size={14} fill="currentColor" />
-                                    <span>{data?.hasPlan ? "CURRENT MISSION" : "NO ACTIVE MISSION"}</span>
+                                    <span>{data?.hasPlan ? "UP NEXT" : "NO PLAN YET"}</span>
                                 </div>
 
                                 {data?.hasPlan && data.mission ? (

@@ -25,7 +25,7 @@ export async function startSession(courseId: string, studyPlanId: string, topicN
         transcript: [
             {
                 role: 'system',
-                content: `Session started for topic: ${topicName}. Welcome to the Director Mode.`,
+                content: `Let's work on ${topicName} together!`,
                 timestamp: new Date()
             }
         ]

@@ -50,6 +50,20 @@ function handleToolCall(toolCall: any, sessionId: string) {
                 urgency: args.urgency || 'medium'
             };
 
+        case 'mark_concept_covered':
+            return {
+                type: 'progress_update',
+                conceptName: args.conceptName,
+                confidence: args.confidence || 'medium'
+            };
+
+        case 'complete_session':
+            return {
+                type: 'session_complete',
+                summary: args.summary,
+                conceptsCovered: args.conceptsCovered
+            };
+
         default:
             return null;
     }
@@ -99,6 +113,27 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
         .filter((r: any) => r?.type === 'actions')
         .flatMap((r: any) => r.actions);
 
+    // Update progress based on tool calls
+    let progressUpdated = false;
+    for (const result of toolResults) {
+        if (result?.type === 'progress_update') {
+            // Add concept to covered list (avoid duplicates)
+            if (!studySession.progress.conceptsCovered.includes(result.conceptName)) {
+                studySession.progress.conceptsCovered.push(result.conceptName);
+                progressUpdated = true;
+            }
+        } else if (result?.type === 'session_complete') {
+            studySession.progress.isComplete = true;
+            // Add any missing concepts
+            for (const concept of result.conceptsCovered || []) {
+                if (!studySession.progress.conceptsCovered.includes(concept)) {
+                    studySession.progress.conceptsCovered.push(concept);
+                }
+            }
+            progressUpdated = true;
+        }
+    }
+
     // Add assistant response to transcript
     studySession.transcript.push({
         role: 'assistant',
@@ -118,7 +153,12 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
         message: response.text,
         toolResults,
         suggestedActions,
-        transcriptId: studySession.transcript[studySession.transcript.length - 1]._id
+        transcriptId: studySession.transcript[studySession.transcript.length - 1]._id,
+        progress: progressUpdated ? {
+            conceptsCovered: studySession.progress.conceptsCovered,
+            estimatedTotal: studySession.progress.estimatedTotal,
+            isComplete: studySession.progress.isComplete
+        } : undefined
     };
 }
 

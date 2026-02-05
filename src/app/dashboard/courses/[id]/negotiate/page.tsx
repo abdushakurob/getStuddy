@@ -21,8 +21,8 @@ export default async function NegotiationPage({ params }: Props) {
                     <ArrowLeft size={20} />
                 </Link>
                 <div>
-                    <h1 className="text-lg font-bold text-gray-900">Brief the Architect</h1>
-                    <p className="text-xs text-gray-400">Design your perfect study strategy.</p>
+                    <h1 className="text-lg font-bold text-gray-900">Plan with Studdy</h1>
+                    <p className="text-xs text-gray-400">Design your study plan together.</p>
                 </div>
             </div>
 

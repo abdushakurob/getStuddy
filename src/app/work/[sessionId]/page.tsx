@@ -78,7 +78,13 @@ export default async function WorkspacePage({ params }: { params: Promise<{ sess
                         <div className="flex-1 bg-white rounded-[32px] shadow-lg shadow-gray-100/50 border border-gray-100 overflow-hidden">
                             <AgentCanvas
                                 sessionId={workSession._id.toString()}
+                                topicName={workSession.topicName}
                                 initialTranscript={transcript}
+                                initialProgress={{
+                                    conceptsCovered: workSession.progress?.conceptsCovered || [],
+                                    estimatedTotal: workSession.progress?.estimatedTotal || 5,
+                                    isComplete: workSession.progress?.isComplete || false
+                                }}
                             />
                         </div>
                     </div>

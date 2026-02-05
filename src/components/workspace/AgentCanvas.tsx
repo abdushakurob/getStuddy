@@ -11,7 +11,7 @@ interface TranscriptItem {
     content: string;
     widgetType?: string;
     widgetData?: any;
-    toolResults?: any[];  // Add tool results
+    toolResults?: any[];
     suggestedActions?: Array<{
         label: string;
         intent: string;
@@ -19,12 +19,31 @@ interface TranscriptItem {
     }>;
 }
 
-export default function AgentCanvas({ sessionId, initialTranscript = [] }: { sessionId: string, initialTranscript?: TranscriptItem[] }) {
+interface SessionProgress {
+    conceptsCovered: string[];
+    estimatedTotal: number;
+    isComplete: boolean;
+}
+
+interface AgentCanvasProps {
+    sessionId: string;
+    topicName?: string;
+    initialTranscript?: TranscriptItem[];
+    initialProgress?: SessionProgress;
+}
+
+export default function AgentCanvas({
+    sessionId,
+    topicName = "Study Session",
+    initialTranscript = [],
+    initialProgress = { conceptsCovered: [], estimatedTotal: 5, isComplete: false }
+}: AgentCanvasProps) {
     const [transcript, setTranscript] = useState<TranscriptItem[]>(initialTranscript);
     const [input, setInput] = useState('');
     const [showInput, setShowInput] = useState(false);
     const [loading, setLoading] = useState(false);
     const [companionStatus, setCompanionStatus] = useState<string>("Ready when you are");
+    const [progress, setProgress] = useState<SessionProgress>(initialProgress);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -54,10 +73,15 @@ export default function AgentCanvas({ sessionId, initialTranscript = [] }: { ses
                 role: 'assistant',
                 content: response.message,
                 suggestedActions: response.suggestedActions,
-                toolResults: response.toolResults  // Include tool results
+                toolResults: response.toolResults
             }]);
 
-            setCompanionStatus("I'm here if you need me");
+            // Update progress if returned
+            if (response.progress) {
+                setProgress(response.progress);
+            }
+
+            setCompanionStatus(response.progress?.isComplete ? "Great session!" : "I'm here if you need me");
         } catch (error) {
             console.error('Director error:', error);
             setCompanionStatus("Something went wrong");
@@ -152,23 +176,43 @@ export default function AgentCanvas({ sessionId, initialTranscript = [] }: { ses
     return (
         <div className="flex flex-col h-full bg-gradient-to-b from-white to-gray-50 relative">
 
-            {/* Active Context Header */}
+            {/* Session Header */}
             <div className="p-6 border-b border-gray-100 bg-white shrink-0">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h3 className="font-bold text-gray-900 text-lg">Learning Session</h3>
-                        <p className="text-xs text-gray-500 mt-0.5">Your companion is ready</p>
+                        <h3 className="font-bold text-gray-900 text-lg">{topicName}</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                            {progress.isComplete ? "Session complete!" : companionStatus}
+                        </p>
                     </div>
-                    <div className="relative w-12 h-12">
-                        <svg className="transform -rotate-90 w-12 h-12">
-                            <circle cx="24" cy="24" r="20" stroke="#e5e7eb" strokeWidth="4" fill="none" />
-                            <circle cx="24" cy="24" r="20" stroke="#4C8233" strokeWidth="4" fill="none"
-                                strokeDasharray="125.6" strokeDashoffset="75" strokeLinecap="round" />
-                        </svg>
-                        <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-[#4C8233]">
-                            40%
-                        </div>
-                    </div>
+                    {(() => {
+                        const progressPercent = Math.min(
+                            Math.round((progress.conceptsCovered.length / progress.estimatedTotal) * 100),
+                            100
+                        );
+                        const circumference = 2 * Math.PI * 20; // r=20
+                        const offset = circumference - (progressPercent / 100) * circumference;
+
+                        return (
+                            <div className="relative w-12 h-12">
+                                <svg className="transform -rotate-90 w-12 h-12">
+                                    <circle cx="24" cy="24" r="20" stroke="#e5e7eb" strokeWidth="4" fill="none" />
+                                    <circle
+                                        cx="24" cy="24" r="20"
+                                        stroke={progress.isComplete ? "#4C8233" : "#84A98C"}
+                                        strokeWidth="4"
+                                        fill="none"
+                                        strokeDasharray={circumference}
+                                        strokeDashoffset={offset}
+                                        strokeLinecap="round"
+                                    />
+                                </svg>
+                                <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-[#4C8233]">
+                                    {progressPercent}%
+                                </div>
+                            </div>
+                        );
+                    })()}
                 </div>
             </div>
 

@@ -96,8 +96,8 @@ export default function NegotiationChat({ courseId, existingPlan }: { courseId: 
                         <Sparkles size={24} className="text-white" />
                     </div>
                     <div>
-                        <h2 className="font-black text-[#1F2937] text-lg">Studdy Companion</h2>
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Planning Phase</p>
+                        <h2 className="font-black text-[#1F2937] text-lg">Studdy</h2>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Your Study Companion</p>
                     </div>
                 </div>
             </div>
@@ -109,7 +109,7 @@ export default function NegotiationChat({ courseId, existingPlan }: { courseId: 
                     <div className="flex flex-col items-center justify-center h-full text-center opacity-50 px-10">
                         <Bot size={48} className="text-[#4C8233] mb-4" />
                         <p className="font-bold text-gray-400">
-                            "Hello! I've analyzed your files. Ready to design a study plan?"
+                            "Hey! I've looked through your materials. Ready to plan this out together?"
                         </p>
                     </div>
                 )}
@@ -158,12 +158,7 @@ export default function NegotiationChat({ courseId, existingPlan }: { courseId: 
                             </div>
                         </div>
 
-                        {/* PLAN CARD (Render outside bubble, but indented) */}
-                        {msg.planData && (
-                            <div className="mt-2 ml-14 max-w-[85%]">
-                                <PlanSummaryCard plan={msg.planData} />
-                            </div>
-                        )}
+                        {/* Plan card is shown at the bottom via activePlan, not inline */}
 
                     </div>
                 ))}

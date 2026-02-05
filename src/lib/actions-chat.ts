@@ -177,10 +177,19 @@ IMPORTANT: When adjusting the plan, do NOT modify or reschedule completed missio
 
         let newPlan;
         if (existingPlan) {
-            // Update existing plan
+            // Preserve completed missions from existing plan
+            const completedMissions = existingPlan.schedule?.filter((t: any) => t.status === 'completed') || [];
+
+            // Merge: completed missions first, then new schedule
+            const mergedSchedule = [
+                ...completedMissions,
+                ...schedule
+            ];
+
+            // Update existing plan with merged schedule
             existingPlan.goal = args.goal;
             existingPlan.phase = args.phase;
-            existingPlan.schedule = schedule;
+            existingPlan.schedule = mergedSchedule;
             await existingPlan.save();
             newPlan = existingPlan;
         } else {
