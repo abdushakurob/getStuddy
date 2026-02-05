@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import dbConnect from '@/lib/db';
 import Resource from '@/models/Resource';
 import Course from '@/models/Course';
+import { genAI, AI_MODEL } from '@/lib/ai-config';
 
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
+// Initialize Gemini with centralized config
+const model = genAI.getGenerativeModel({ model: AI_MODEL });
 
 export async function POST(req: NextRequest) {
     try {

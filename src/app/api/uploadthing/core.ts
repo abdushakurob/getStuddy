@@ -16,17 +16,21 @@ const handleFile = async ({ file, metadata }: any) => {
         // Get safe file type
         const fileType = file.type || 'application/pdf'; // Fallback if type is missing
 
+        // Determine resource type from MIME
+        const resourceType = fileType.startsWith('image') ? 'image' :
+            fileType.startsWith('audio') ? 'audio' :
+                fileType.startsWith('video') ? 'video' : 'pdf';
+
         // 1. Create Resource Entry (Processing State)
         const resource = await Resource.create({
             courseId: metadata.courseId,
-            folderId: metadata.folderId === 'null' ? null : metadata.folderId, // Handle unassigned
+            folderId: metadata.folderId === 'null' ? null : metadata.folderId,
             userId: metadata.userId,
             title: file.name,
-            type: fileType.startsWith('image') ? 'image' :
-                fileType.startsWith('audio') ? 'audio' :
-                    fileType.startsWith('video') ? 'video' : 'pdf',
+            type: resourceType,
             fileUrl: file.url,
-            status: 'processing'
+            status: 'processing',
+            retryCount: 0
         });
 
         // 2. Trigger Gemini Analysis (Background - Fire and Forget)
@@ -37,20 +41,36 @@ const handleFile = async ({ file, metadata }: any) => {
                 if (analysis) {
                     resource.knowledgeBase = analysis.distilled_content || analysis.summary;
                     resource.summary = analysis.summary;
+
+                    // Save structured learning data
+                    if (analysis.learning_map) {
+                        resource.learningMap = analysis.learning_map;
+                    }
+                    if (analysis.suggested_order) {
+                        resource.suggestedOrder = analysis.suggested_order;
+                    }
+                    if (analysis.total_concepts) {
+                        resource.totalConcepts = analysis.total_concepts;
+                    }
+
                     resource.status = 'ready';
+                    resource.errorMessage = undefined;
                 } else {
                     resource.status = 'error';
+                    resource.errorMessage = 'AI analysis returned empty result';
                 }
                 await resource.save();
 
-            } catch (e) {
+            } catch (e: any) {
                 console.error("Analysis Failed:", e);
                 resource.status = 'error';
+                resource.errorMessage = e?.message || 'Unknown analysis error';
+                resource.retryCount = (resource.retryCount || 0) + 1;
                 await resource.save();
             }
         })();
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("[UploadThing] CRITICAL FAILURE in handleFile:", error);
     }
 };

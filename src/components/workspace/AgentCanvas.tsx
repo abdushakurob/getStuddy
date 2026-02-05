@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Sparkles, HelpCircle, Loader2 } from 'lucide-react';
+import { Sparkles, HelpCircle, Loader2, BookOpen, ArrowRight } from 'lucide-react';
 import { sendMessageToDirector, handleActionIntent } from '@/lib/actions-director';
-import PlanAdjustmentCard from './PlanAdjustmentCard';
+import { useResource } from '@/context/ResourceContext';
 
 interface TranscriptItem {
     _id?: string;
@@ -15,6 +15,7 @@ interface TranscriptItem {
     suggestedActions?: Array<{
         label: string;
         intent: string;
+        reason?: string;
         priority: 'primary' | 'secondary';
     }>;
 }
@@ -44,7 +45,11 @@ export default function AgentCanvas({
     const [loading, setLoading] = useState(false);
     const [companionStatus, setCompanionStatus] = useState<string>("Ready when you are");
     const [progress, setProgress] = useState<SessionProgress>(initialProgress);
+    const [navigationHint, setNavigationHint] = useState<string | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    // Get resource controls for navigation
+    const { jumpToPage, seekTo } = useResource();
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -57,6 +62,7 @@ export default function AgentCanvas({
 
         setLoading(true);
         setCompanionStatus("Thinking...");
+        setNavigationHint(null);
 
         // Optimistic UI update
         setTranscript(prev => [...prev, {
@@ -76,6 +82,32 @@ export default function AgentCanvas({
                 toolResults: response.toolResults
             }]);
 
+            // Handle navigation commands from companion
+            if (response.navigationCommands && response.navigationCommands.length > 0) {
+                for (const nav of response.navigationCommands) {
+                    if (nav.page) {
+                        // PDF navigation
+                        jumpToPage(nav.page);
+                        setNavigationHint(`Showing page ${nav.page}: ${nav.context}`);
+                    } else if (nav.timestamp) {
+                        // Video/audio navigation - parse timestamp
+                        const parts = nav.timestamp.split(':').map(Number);
+                        let seconds = 0;
+                        if (parts.length === 3) {
+                            seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+                        } else if (parts.length === 2) {
+                            seconds = parts[0] * 60 + parts[1];
+                        } else {
+                            seconds = parts[0];
+                        }
+                        seekTo(seconds);
+                        setNavigationHint(`Jump to ${nav.timestamp}: ${nav.context}`);
+                    }
+                }
+                // Clear hint after 5 seconds
+                setTimeout(() => setNavigationHint(null), 5000);
+            }
+
             // Update progress if returned
             if (response.progress) {
                 setProgress(response.progress);
@@ -93,6 +125,7 @@ export default function AgentCanvas({
     const handleAction = async (intent: string) => {
         setLoading(true);
         setCompanionStatus("Processing...");
+        setNavigationHint(null);
 
         try {
             const response = await handleActionIntent(sessionId, intent);
@@ -101,10 +134,38 @@ export default function AgentCanvas({
                 role: 'assistant',
                 content: response.message,
                 suggestedActions: response.suggestedActions,
-                toolResults: response.toolResults  // Include tool results
+                toolResults: response.toolResults
             }]);
 
-            setCompanionStatus("I'm here if you need me");
+            // Handle navigation commands
+            if (response.navigationCommands && response.navigationCommands.length > 0) {
+                for (const nav of response.navigationCommands) {
+                    if (nav.page) {
+                        jumpToPage(nav.page);
+                        setNavigationHint(`Showing page ${nav.page}: ${nav.context}`);
+                    } else if (nav.timestamp) {
+                        const parts = nav.timestamp.split(':').map(Number);
+                        let seconds = 0;
+                        if (parts.length === 3) {
+                            seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+                        } else if (parts.length === 2) {
+                            seconds = parts[0] * 60 + parts[1];
+                        } else {
+                            seconds = parts[0];
+                        }
+                        seekTo(seconds);
+                        setNavigationHint(`Jump to ${nav.timestamp}: ${nav.context}`);
+                    }
+                }
+                setTimeout(() => setNavigationHint(null), 5000);
+            }
+
+            // Update progress if returned
+            if (response.progress) {
+                setProgress(response.progress);
+            }
+
+            setCompanionStatus(response.progress?.isComplete ? "Great session!" : "I'm here if you need me");
         } catch (error) {
             console.error('Action error:', error);
             setCompanionStatus("Something went wrong");
@@ -186,8 +247,9 @@ export default function AgentCanvas({
                         </p>
                     </div>
                     {(() => {
+                        const total = progress.estimatedTotal || 1; // Prevent division by zero
                         const progressPercent = Math.min(
-                            Math.round((progress.conceptsCovered.length / progress.estimatedTotal) * 100),
+                            Math.round((progress.conceptsCovered.length / total) * 100),
                             100
                         );
                         const circumference = 2 * Math.PI * 20; // r=20
@@ -215,6 +277,14 @@ export default function AgentCanvas({
                     })()}
                 </div>
             </div>
+
+            {/* Navigation Hint Banner */}
+            {navigationHint && (
+                <div className="mx-6 mb-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2 animate-in slide-in-from-top duration-300">
+                    <BookOpen size={16} className="text-blue-600" />
+                    <span className="text-sm text-blue-700 font-medium">{navigationHint}</span>
+                </div>
+            )}
 
             {/* Transcript - Scrollable */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6 space-y-4">

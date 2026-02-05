@@ -103,14 +103,51 @@ export default function CourseExplorer({ courseId, initialData, currentFolderId 
                     {initialData.resources.map((file: any) => (
                         <div
                             key={file.id}
-                            className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center text-center gap-3 group hover:border-gray-300 transition-all aspect-square justify-center relative"
+                            className={`bg-white p-4 rounded-2xl border shadow-sm flex flex-col items-center text-center gap-3 group transition-all aspect-square justify-center relative ${file.status === 'error'
+                                    ? 'border-red-200 bg-red-50/50'
+                                    : file.status === 'processing'
+                                        ? 'border-amber-200 bg-amber-50/50'
+                                        : 'border-gray-100 hover:border-gray-300'
+                                }`}
                         >
-                            <div className="w-12 h-12 bg-gray-50 text-gray-500 rounded-xl flex items-center justify-center">
+                            {/* Status Badge */}
+                            {file.status === 'processing' && (
+                                <div className="absolute top-2 right-2">
+                                    <Loader2 size={14} className="animate-spin text-amber-500" />
+                                </div>
+                            )}
+                            {file.status === 'error' && (
+                                <div className="absolute top-2 right-2" title={file.errorMessage || 'Analysis failed'}>
+                                    <span className="w-5 h-5 bg-red-500 text-white rounded-full text-xs font-bold flex items-center justify-center">!</span>
+                                </div>
+                            )}
+                            {file.status === 'ready' && (
+                                <div className="absolute top-2 right-2">
+                                    <span className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                                        <span className="text-white text-[10px]">✓</span>
+                                    </span>
+                                </div>
+                            )}
+
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${file.status === 'error'
+                                    ? 'bg-red-100 text-red-500'
+                                    : file.status === 'processing'
+                                        ? 'bg-amber-100 text-amber-600'
+                                        : 'bg-gray-50 text-gray-500'
+                                }`}>
                                 <FileText size={24} />
                             </div>
                             <span className="text-xs font-bold text-gray-600 line-clamp-2 leading-tight break-all">
                                 {file.title}
                             </span>
+
+                            {/* Status Text */}
+                            {file.status === 'processing' && (
+                                <span className="text-[10px] text-amber-600 font-medium">Analyzing...</span>
+                            )}
+                            {file.status === 'error' && (
+                                <span className="text-[10px] text-red-500 font-medium">Failed</span>
+                            )}
                         </div>
                     ))}
                 </div>

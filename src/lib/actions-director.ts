@@ -3,10 +3,10 @@
 import { auth } from '@/auth';
 import dbConnect from '@/lib/db';
 import Session from '@/models/Session';
-import { initializeDirector, sendDirectorMessage } from './director-agent';
+import { initializeCompanion, sendCompanionMessage } from './director-agent';
 import { revalidatePath } from 'next/cache';
 
-// Handle tool calls from Director Agent
+// Handle tool calls from Companion Agent
 function handleToolCall(toolCall: any, sessionId: string) {
     const { name, args } = toolCall;
 
@@ -14,54 +14,56 @@ function handleToolCall(toolCall: any, sessionId: string) {
         case 'navigate_resource':
             return {
                 type: 'navigation',
-                location: args.location,
-                reason: args.reason
+                page: args.page,
+                timestamp: args.timestamp,
+                context: args.context
             };
 
-        case 'show_concept':
+        case 'explain_concept':
             return {
-                type: 'concept',
-                title: args.title,
-                body: args.body,
+                type: 'explanation',
+                concept: args.concept,
+                explanation: args.explanation,
+                analogy: args.analogy,
                 example: args.example
             };
 
-        case 'quick_check':
+        case 'check_understanding':
             return {
-                type: 'check',
+                type: 'understanding_check',
                 question: args.question,
-                options: args.options,
-                correctIndex: args.correctIndex,
-                explanation: args.explanation
+                expectedInsight: args.expected_insight,
+                hint: args.hint_if_stuck
             };
 
-        case 'suggest_actions':
+        case 'offer_paths':
             return {
-                type: 'actions',
-                actions: args.actions
+                type: 'paths',
+                paths: args.paths
             };
 
-        case 'suggest_plan_adjustment':
-            return {
-                type: 'plan_adjustment',
-                reason: args.reason,
-                adjustmentType: args.adjustmentType,
-                details: args.details,
-                urgency: args.urgency || 'medium'
-            };
-
-        case 'mark_concept_covered':
+        case 'note_progress':
             return {
                 type: 'progress_update',
-                conceptName: args.conceptName,
-                confidence: args.confidence || 'medium'
+                concept: args.concept,
+                level: args.understanding_level,
+                evidence: args.evidence
             };
 
-        case 'complete_session':
+        case 'suggest_skip':
+            return {
+                type: 'skip_suggestion',
+                currentConcept: args.current_concept,
+                skipTo: args.skip_to,
+                verificationQuestion: args.quick_review_question
+            };
+
+        case 'wrap_up_session':
             return {
                 type: 'session_complete',
                 summary: args.summary,
-                conceptsCovered: args.conceptsCovered
+                conceptsCovered: args.concepts_covered,
+                nextTimePreview: args.next_time_preview
             };
 
         default:
@@ -86,45 +88,99 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
         timestamp: new Date()
     });
 
-    // Initialize Director Agent
+    // Fetch resources with full learning data
+    const Resource = (await import('@/models/Resource')).default;
+    const resources = await Resource.find({
+        courseId: studySession.courseId,
+        status: 'ready'
+    }).select('title type fileUrl knowledgeBase summary learningMap suggestedOrder totalConcepts').lean();
+
+    // Find primary resource
+    const primaryResource = resources.find((r: any) => r.type === 'pdf') || resources[0];
+
+    // Merge learning maps from all resources
+    const combinedLearningMap = resources.flatMap((r: any) => r.learningMap || []);
+    const combinedSuggestedOrder = resources.flatMap((r: any) => r.suggestedOrder || []);
+    const totalConcepts = resources.reduce((sum: number, r: any) => sum + (r.totalConcepts || 0), 0);
+
+    // Build comprehensive content
+    const knowledgeBase = resources.map((r: any) =>
+        `=== ${r.title} (${r.type}) ===\n${r.knowledgeBase?.substring(0, 12000) || r.summary || ''}`
+    ).join('\n\n');
+
+    // Build companion context with structured learning data
     const context = {
         topicName: studySession.topicName,
-        resourceType: 'PDF', // TODO: Get from currentResource
-        userGoal: 'Master the topic',
-        previousInteractions: studySession.transcript.slice(-5).map((t: any) => t.content)
+        sessionGoal: studySession.title,
+        resourceType: primaryResource?.type || 'document',
+        resourceTitle: primaryResource?.title,
+        resourceUrl: primaryResource?.fileUrl,
+
+        // Structured learning data
+        learningMap: combinedLearningMap,
+        suggestedOrder: combinedSuggestedOrder,
+        totalConcepts,
+
+        // Content
+        knowledgeBase,
+
+        // Current progress
+        conceptsCovered: studySession.progress?.conceptsCovered?.map((c: string) => ({
+            concept: c,
+            level: 'explained'
+        })) || [],
+
+        // Recent conversation for context
+        previousExchanges: studySession.transcript.slice(-6).map((t: any) =>
+            `${t.role}: ${t.content?.substring(0, 200)}`
+        )
     };
 
-    const model = await initializeDirector(context);
+    const model = await initializeCompanion(context);
 
     // Build chat history for Gemini
-    const history = studySession.transcript.slice(0, -1).map((t: any) => ({
+    const rawHistory = studySession.transcript.slice(0, -1).map((t: any) => ({
         role: t.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: t.content }]
     }));
 
-    // Send message to Director
-    const response = await sendDirectorMessage(model, userMessage, history);
+    // Gemini requires first message to be from 'user'
+    const firstUserIndex = rawHistory.findIndex((m: any) => m.role === 'user');
+    const history = firstUserIndex >= 0 ? rawHistory.slice(firstUserIndex) : [];
+
+    // Send message to Companion
+    const response = await sendCompanionMessage(model, userMessage, history);
 
     // Process tool calls
-    const toolResults = response.toolCalls.map((tc: any) => handleToolCall(tc, sessionId));
+    const toolResults = response.toolCalls.map((tc: any) => handleToolCall(tc, sessionId)).filter(Boolean);
 
-    // Extract suggested actions from tool calls
+    // Extract paths (new suggested actions format)
     const suggestedActions = toolResults
-        .filter((r: any) => r?.type === 'actions')
-        .flatMap((r: any) => r.actions);
+        .filter((r: any) => r?.type === 'paths')
+        .flatMap((r: any) => r.paths?.map((p: any) => ({
+            label: p.suggestion,
+            intent: p.suggestion,
+            reason: p.reason,
+            priority: p.type === 'continue' ? 'primary' : 'secondary'
+        })) || []);
+
+    // Extract navigation commands
+    const navigationCommands = toolResults.filter((r: any) => r?.type === 'navigation');
 
     // Update progress based on tool calls
     let progressUpdated = false;
     for (const result of toolResults) {
         if (result?.type === 'progress_update') {
-            // Add concept to covered list (avoid duplicates)
-            if (!studySession.progress.conceptsCovered.includes(result.conceptName)) {
-                studySession.progress.conceptsCovered.push(result.conceptName);
+            // Add concept with level tracking
+            const existingIndex = studySession.progress.conceptsCovered.indexOf(result.concept);
+            if (existingIndex === -1) {
+                studySession.progress.conceptsCovered.push(result.concept);
                 progressUpdated = true;
             }
+            // Could track levels in a separate field if needed
         } else if (result?.type === 'session_complete') {
             studySession.progress.isComplete = true;
-            // Add any missing concepts
+            studySession.status = 'completed';
             for (const concept of result.conceptsCovered || []) {
                 if (!studySession.progress.conceptsCovered.includes(concept)) {
                     studySession.progress.conceptsCovered.push(concept);
@@ -153,32 +209,20 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
         message: response.text,
         toolResults,
         suggestedActions,
-        transcriptId: studySession.transcript[studySession.transcript.length - 1]._id,
+        navigationCommands,
+        transcriptId: studySession.transcript[studySession.transcript.length - 1]._id?.toString(),
         progress: progressUpdated ? {
             conceptsCovered: studySession.progress.conceptsCovered,
-            estimatedTotal: studySession.progress.estimatedTotal,
+            estimatedTotal: context.totalConcepts || studySession.progress.estimatedTotal,
             isComplete: studySession.progress.isComplete
         } : undefined
     };
 }
 
 export async function handleActionIntent(sessionId: string, intent: string) {
-    const session = await auth();
-    if (!session?.user?.id) throw new Error('Unauthorized');
-
-    // Map intent to user message
-    const intentMessages: Record<string, string> = {
-        'show_syntax': 'Show me the syntax',
-        'compare_tuples': 'How is this different from tuples?',
-        'show_example': 'Can you show me an example?',
-        'continue': 'I understand, let\'s continue',
-        'next_concept': 'Move to the next concept',
-        'break_down': 'Break this down more',
-        'skip_ahead': 'Skip to advanced topics'
-    };
-
-    const message = intentMessages[intent] || intent;
-    return sendMessageToDirector(sessionId, message);
+    // For the new companion approach, we pass the natural language suggestion directly
+    // No need to map - the companion understands natural language
+    return sendMessageToDirector(sessionId, intent);
 }
 
 export async function getSessionTranscript(sessionId: string) {

@@ -6,6 +6,7 @@ import { ArrowLeft, Maximize2, X, FileText, LayoutTemplate, MoreHorizontal } fro
 import { ResourceProvider } from '@/context/ResourceContext';
 import ResourceViewer from '@/components/workspace/ResourceViewer';
 import AgentCanvas from '@/components/workspace/AgentCanvas';
+import ResourceInitializer from '@/components/workspace/ResourceInitializer';
 
 export default async function WorkspacePage({ params }: { params: Promise<{ sessionId: string }> }) {
     const { sessionId } = await params;
@@ -68,7 +69,13 @@ export default async function WorkspacePage({ params }: { params: Promise<{ sess
                     {/* LEFT: Resource Viewer (55% - Paper Style) */}
                     <div className="w-[55%] relative flex flex-col p-6 pr-3">
                         <div className="flex-1 bg-white rounded-[24px] shadow-sm border border-gray-100 overflow-hidden relative">
-                            {/* Passed 'isLightMode' prop if supported, or rely on clean CSS */}
+                            {/* Initialize resource from session */}
+                            {workSession.activeResource && (
+                                <ResourceInitializer
+                                    fileUrl={workSession.activeResource.fileUrl}
+                                    fileType={workSession.activeResource.type}
+                                />
+                            )}
                             <ResourceViewer />
                         </div>
                     </div>

@@ -4,6 +4,10 @@ import { useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, Loader2 } from 'lucide-react';
 
+// Import react-pdf styles
+import 'react-pdf/dist/Page/TextLayer.css';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+
 // Configure PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -87,6 +91,12 @@ export default function PDFViewer({ url }: PDFViewerProps) {
                 <Document
                     file={url}
                     onLoadSuccess={onDocumentLoadSuccess}
+                    onItemClick={({ pageNumber: clickedPage }) => {
+                        // Handle internal PDF link clicks (like TOC)
+                        if (clickedPage) {
+                            setPageNumber(clickedPage);
+                        }
+                    }}
                     loading=""
                     className="shadow-lg"
                 >

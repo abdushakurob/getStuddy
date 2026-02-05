@@ -1,17 +1,10 @@
 
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { SchemaType } from "@google/generative-ai";
+import { genAI, AI_MODEL } from "./ai-config";
 
-const apiKey = process.env.GEMINI_API_KEY;
-
-if (!apiKey) {
-    console.warn("GEMINI_API_KEY is missing. AI features will not work.");
-}
-
-const genAI = new GoogleGenerativeAI(apiKey || "PENDING_KEY");
-
-// Use 1.5 Flash for speed (Pro is good too, but Flash is snappier for chat)
+// Use centralized model config with tools for planning agent
 const model = genAI.getGenerativeModel({
-    model: "gemini-3-flash-preview",
+    model: AI_MODEL,
     // Define the Agent's "Hands" (Tools)
     tools: [
         {
@@ -48,7 +41,7 @@ const model = genAI.getGenerativeModel({
     timeout: 180000 // 3 Minutes Timeout for long chains
 });
 
-console.log("Gemini Model Initialized: gemini-3-flash-preview (Agentic Mode)");
+console.log(`[Planning Agent] Using model: ${AI_MODEL}`);
 
 // Helper to fetch and convert URL to Base64
 async function urlToGenerativePart(url: string, mimeType: string) {
@@ -67,30 +60,42 @@ async function urlToGenerativePart(url: string, mimeType: string) {
 
 export async function analyzeDocument(fileUrl: string, mimeType: string = "application/pdf") {
     const prompt = `
-    You are Studdy, a study companion.
-    Analyze the attached document (PDF, Image, Audio, or Text).
+    You are Studdy, an AI study companion designed to help students learn effectively.
+    Analyze the attached document thoroughly.
     
-    GOAL: Create a structured outline of what the student needs to learn.
+    GOAL: Create a structured learning guide that a companion AI can use to teach this content.
     
     INSTRUCTIONS:
-    1. Extract the key Topics and Sub-topics.
-    2. Identify areas that might be challenging for the student.
-    3. Generate a "Knowledge Summary" (This is CRITICAL). 
-       - This should be a detailed, comprehensive text provided in the 'distilled_content' field.
-       - It must cover EVERY chapter, rule, exam date, and core concept found in the file.
-       - It must be detailed enough that you can help the student with any question about this content.
+    1. Extract ALL key concepts, organized by topic/chapter.
+    2. For each concept, note WHERE it appears (page number, section, or timestamp).
+    3. Identify prerequisite relationships (what should be learned first).
+    4. Note areas that are typically challenging for students.
+    5. Create the "distilled_content" - a comprehensive extraction of the actual content.
     
     OUTPUT JSON FORMAT:
     {
-       "summary": "Brief 2-sentence summary...",
-       "distilled_content": "CHAPTER 1: ... (Detailed extraction of content) ... CHAPTER 2: ...",
-       "topics": [
-          {
-             "name": "Topic Name",
-             "status": "locked",
-             "complexity": "High/Medium/Low"
-          }
-       ]
+       "summary": "Brief 2-sentence summary of what this document covers...",
+       
+       "distilled_content": "COMPREHENSIVE extraction of the document content. Include chapter titles, key definitions, formulas, examples, and important details. This is what the companion will reference when teaching.",
+       
+       "learning_map": [
+           {
+               "topic": "Chapter/Section name",
+               "concepts": [
+                   {
+                       "name": "Concept name (e.g., 'Variable Declaration')",
+                       "location": "Page 5" or "Section 2.1" or "0:45-1:30",
+                       "prerequisites": ["Previous concept name if any"],
+                       "difficulty": "beginner" | "intermediate" | "advanced",
+                       "key_points": ["Main idea 1", "Main idea 2"]
+                   }
+               ]
+           }
+       ],
+       
+       "suggested_order": ["Concept 1", "Concept 2", "..."],
+       
+       "total_concepts": 12
     }
   `;
 

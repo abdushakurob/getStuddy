@@ -189,3 +189,54 @@ export async function getCourseContent(courseId: string, folderId: string | null
         } : null
     };
 }
+
+// Retry analysis for failed resources
+export async function retryResourceAnalysis(resourceId: string) {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error('Unauthorized');
+
+    await dbConnect();
+
+    const resource = await Resource.findOne({
+        _id: resourceId,
+        userId: session.user.id
+    });
+
+    if (!resource) throw new Error('Resource not found');
+    if (resource.status === 'ready') return { success: true, message: 'Already analyzed' };
+
+    // Reset to processing
+    resource.status = 'processing';
+    resource.errorMessage = undefined;
+    await resource.save();
+
+    // Re-trigger analysis
+    const { analyzeDocument } = await import('@/lib/gemini');
+
+    try {
+        const analysis = await analyzeDocument(resource.fileUrl, 'application/pdf');
+
+        if (analysis) {
+            resource.knowledgeBase = analysis.distilled_content || analysis.summary;
+            resource.summary = analysis.summary;
+            resource.status = 'ready';
+            resource.errorMessage = undefined;
+        } else {
+            resource.status = 'error';
+            resource.errorMessage = 'AI analysis returned empty result';
+        }
+        await resource.save();
+
+        revalidatePath(`/dashboard/courses`);
+        return { success: resource.status === 'ready', message: resource.errorMessage };
+
+    } catch (e: any) {
+        resource.status = 'error';
+        resource.errorMessage = e?.message || 'Analysis failed';
+        resource.retryCount = (resource.retryCount || 0) + 1;
+        await resource.save();
+
+        revalidatePath(`/dashboard/courses`);
+        return { success: false, message: resource.errorMessage };
+    }
+}
