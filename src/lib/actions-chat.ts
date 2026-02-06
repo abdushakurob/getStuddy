@@ -15,10 +15,52 @@ export async function getChatHistory(courseId: string) {
     if (!session?.user?.id) return [];
 
     await dbConnect();
+
+    // Check existing messages
     const messages = await Message.find({
         courseId,
         userId: session.user.id
     }).sort({ createdAt: 1 }).lean();
+
+    // If no messages exist, create the initial greeting
+    if (messages.length === 0) {
+        // Check resource status to determine greeting
+        const resources = await Resource.find({
+            courseId,
+            userId: session.user.id
+        }).select('status title').lean();
+
+        const readyCount = resources.filter((r: any) => r.status === 'ready').length;
+        const processingCount = resources.filter((r: any) => r.status === 'processing').length;
+        const errorCount = resources.filter((r: any) => r.status === 'error').length;
+
+        let greeting: string;
+
+        if (resources.length === 0) {
+            greeting = "Hey! I'm ready to help you plan your studies. 📚\n\nI noticed you haven't uploaded any materials yet. Once you add your PDFs, slides, or notes, I can create a personalized study plan based on exactly what you need to learn.\n\nWhat course is this for?";
+        } else if (readyCount > 0) {
+            greeting = `Hey! I've looked through your materials and I have some ideas. 📖\n\nI found ${readyCount} resource${readyCount > 1 ? 's' : ''} ready to work with. What's your main goal with this course?`;
+        } else if (processingCount > 0) {
+            greeting = `Hey! I see you've uploaded some files, but they're still being analyzed. ⏳\n\nGive it a minute and then we can plan once I can see what's in there. In the meantime, what are you hoping to achieve with this course?`;
+        } else {
+            greeting = `Hey! I noticed the file${errorCount > 1 ? 's' : ''} you uploaded couldn't be analyzed. 😕\n\nYou might want to go back and retry them, or upload different files. What course is this for?`;
+        }
+
+        // Save the greeting as the first message
+        const greetingMsg = await Message.create({
+            courseId,
+            userId: session.user.id,
+            role: 'assistant',
+            content: greeting
+        });
+
+        return [{
+            id: greetingMsg._id.toString(),
+            role: 'assistant' as const,
+            content: greeting,
+            createdAt: greetingMsg.createdAt
+        }];
+    }
 
     return messages.map((m: any) => ({
         id: m._id.toString(),
@@ -83,12 +125,55 @@ export async function sendMessage(courseId: string, content: string) {
         content
     });
 
-    // 2. Fetch Context.
-    // 1M context is more than enough for most courses.
-    const resources = await Resource.find({ courseId, userId: session.user.id })
+    // 2. Fetch Context - ONLY ready resources
+    const allResources = await Resource.find({ courseId, userId: session.user.id })
         .sort({ createdAt: -1 })
-        .select('knowledgeBase title')
+        .select('knowledgeBase title status errorMessage type learningMap suggestedOrder totalConcepts')
         .lean();
+
+    // Separate by status
+    const readyResources = allResources.filter((r: any) => r.status === 'ready');
+    const processingResources = allResources.filter((r: any) => r.status === 'processing');
+    const errorResources = allResources.filter((r: any) => r.status === 'error');
+
+    // Build resource status context for the agent
+    let resourceStatusContext = "\n\n[RESOURCE STATUS]\n";
+
+    if (allResources.length === 0) {
+        resourceStatusContext += `⚠️ NO MATERIALS UPLOADED YET!\nThe user hasn't uploaded any study materials for this course.\n`;
+        resourceStatusContext += `IMPORTANT: Before you can create a meaningful study plan, you should:\n`;
+        resourceStatusContext += `1. Ask them to upload their course materials (PDFs, slides, notes)\n`;
+        resourceStatusContext += `2. Explain that you'll analyze the content to create a personalized plan\n`;
+        resourceStatusContext += `3. You can still chat about their goals, but hold off on committing a plan until they have content\n`;
+    } else {
+        resourceStatusContext += `Ready to use: ${readyResources.length} files\n`;
+        if (processingResources.length > 0) {
+            resourceStatusContext += `⏳ Still analyzing: ${processingResources.length} files (${processingResources.map((r: any) => r.title).join(', ')})\n`;
+            resourceStatusContext += `Note: These files are still being processed. Their content isn't available yet.\n`;
+        }
+        if (errorResources.length > 0) {
+            resourceStatusContext += `❌ Failed to analyze: ${errorResources.length} files (${errorResources.map((r: any) => r.title).join(', ')})\n`;
+            resourceStatusContext += `Note: These files couldn't be analyzed. The user might want to re-upload them.\n`;
+        }
+        if (readyResources.length === 0 && (processingResources.length > 0 || errorResources.length > 0)) {
+            resourceStatusContext += `\n⚠️ NO USABLE MATERIALS YET: All uploaded files are either still processing or failed.\n`;
+            resourceStatusContext += `Suggest the user wait for processing to complete or re-upload failed files.\n`;
+        }
+    }
+
+    // Include learning map info for ready resources
+    const totalConcepts = readyResources.reduce((sum: number, r: any) => sum + (r.totalConcepts || 0), 0);
+    if (totalConcepts > 0) {
+        resourceStatusContext += `\n📚 Total concepts identified: ${totalConcepts}\n`;
+
+        // List some concepts to show what's available
+        const conceptSample = readyResources
+            .flatMap((r: any) => r.suggestedOrder?.slice(0, 5) || [])
+            .slice(0, 10);
+        if (conceptSample.length > 0) {
+            resourceStatusContext += `Sample topics: ${conceptSample.join(', ')}\n`;
+        }
+    }
 
     // 2.5 Fetch GLOBAL CONTEXT (Other Active Plans)
     // This allows the Agent to know if the user is busy with other subjects.
@@ -131,8 +216,12 @@ Remaining Missions (${pending.length}): ${pending.map((t: any) => `${t.topicName
 IMPORTANT: When adjusting the plan, do NOT modify or reschedule completed missions. Only adjust remaining/pending missions.`;
     }
 
-    const docContext = resources.map((r: any) => `[Document: ${r.title}]\n${r.knowledgeBase?.substring(0, 5000)}`).join("\n\n");
-    const contextText = `${docContext}${globalContext}${planProgressContext}`;
+    // Build document context ONLY from ready resources
+    const docContext = readyResources.length > 0
+        ? readyResources.map((r: any) => `[Document: ${r.title}]\n${r.knowledgeBase?.substring(0, 5000)}`).join("\n\n")
+        : "[No analyzed materials available yet]";
+
+    const contextText = `${resourceStatusContext}${docContext}${globalContext}${planProgressContext}`;
 
     // 3. Fetch History
 

@@ -74,6 +74,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ sess
                                 <ResourceInitializer
                                     fileUrl={workSession.activeResource.fileUrl}
                                     fileType={workSession.activeResource.type}
+                                    initialHighlights={workSession.highlights || []}
                                 />
                             )}
                             <ResourceViewer />
@@ -92,6 +93,8 @@ export default async function WorkspacePage({ params }: { params: Promise<{ sess
                                     estimatedTotal: workSession.progress?.estimatedTotal || 5,
                                     isComplete: workSession.progress?.isComplete || false
                                 }}
+                                initialMilestones={workSession.milestones || []}
+                                initialParkingLot={workSession.parkingLot || []}
                             />
                         </div>
                     </div>

@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Folder, FileText, MoreVertical, Plus, ChevronRight, Home, Upload, Loader2, ArrowLeft } from 'lucide-react';
+import { Folder, FileText, MoreVertical, Plus, ChevronRight, Home, Upload, Loader2, ArrowLeft, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
-import { createFolder } from '@/lib/actions-course';
+import { createFolder, retryResourceAnalysis } from '@/lib/actions-course';
 import { useFormStatus } from 'react-dom';
 import UploadButton from './UploadButton';
 
@@ -20,12 +20,44 @@ interface ExplorerProps {
 
 export default function CourseExplorer({ courseId, initialData, currentFolderId }: ExplorerProps) {
     const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
+    const [retryingId, setRetryingId] = useState<string | null>(null);
+
+    const handleRetry = async (resourceId: string) => {
+        setRetryingId(resourceId);
+        try {
+            await retryResourceAnalysis(resourceId);
+        } catch (error) {
+            console.error('Retry failed:', error);
+        } finally {
+            setRetryingId(null);
+        }
+    };
 
     // In a real app, we'd use useOptimistic or SWR to handle navigation state without full page reloads,
     // but for now we rely on Server Component navigation (Link) for simplicity and SEO/Url correctness.
 
+    const [isAddLinkOpen, setIsAddLinkOpen] = useState(false);
+    const [linkUrl, setLinkUrl] = useState('');
+    const [isAddingLink, setIsAddingLink] = useState(false);
+
+    const handleAddLink = async () => {
+        if (!linkUrl) return;
+        setIsAddingLink(true);
+        try {
+            const { addYouTubeResource } = await import('@/lib/actions-course');
+            await addYouTubeResource(courseId, currentFolderId, linkUrl);
+            setIsAddLinkOpen(false);
+            setLinkUrl('');
+        } catch (e) {
+            console.error(e);
+            alert('Failed to add link. Ensure it is a valid YouTube URL.');
+        } finally {
+            setIsAddingLink(false);
+        }
+    };
+
     return (
-        <div className="flex flex-col h-full bg-[#F3F4F6] rounded-[32px] overflow-hidden border border-gray-100 shadow-inner">
+        <div className="flex flex-col h-full bg-[#F3F4F6] rounded-[32px] overflow-hidden border border-gray-100 shadow-inner relative">
 
             {/* --- TOOLBAR --- */}
             <div className="bg-white p-4 border-b border-gray-100 flex items-center justify-between">
@@ -44,20 +76,22 @@ export default function CourseExplorer({ courseId, initialData, currentFolderId 
                             </Link>
                         </div>
                     ))}
-                    {currentFolderId && (
-                        <div className="flex items-center gap-2 shrink-0">
-                            {/* Current folder is usually the last crumb, but if we are deeply nested the logic above handles it */}
-                        </div>
-                    )}
                 </div>
 
                 {/* Actions */}
                 <div className="flex items-center gap-3">
                     <button
-                        onClick={() => setIsCreateFolderOpen(true)}
+                        onClick={() => setIsAddLinkOpen(true)}
                         className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors"
                     >
                         <Plus size={16} />
+                        <span>Link</span>
+                    </button>
+                    <button
+                        onClick={() => setIsCreateFolderOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors"
+                    >
+                        <Folder size={16} />
                         <span>Folder</span>
                     </button>
                     <UploadButton
@@ -67,6 +101,39 @@ export default function CourseExplorer({ courseId, initialData, currentFolderId 
                     />
                 </div>
             </div>
+
+            {/* Link Modal */}
+            {isAddLinkOpen && (
+                <div className="absolute inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md animate-in zoom-in-95 duration-200">
+                        <h3 className="text-lg font-bold mb-4">Add YouTube Link</h3>
+                        <input
+                            type="text"
+                            placeholder="https://youtube.com/..."
+                            value={linkUrl}
+                            onChange={(e) => setLinkUrl(e.target.value)}
+                            className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-[#4C8233]"
+                            autoFocus
+                        />
+                        <div className="flex justify-end gap-2">
+                            <button
+                                onClick={() => setIsAddLinkOpen(false)}
+                                className="px-4 py-2 text-gray-500 font-bold hover:bg-gray-50 rounded-lg"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleAddLink}
+                                disabled={isAddingLink || !linkUrl}
+                                className="px-4 py-2 bg-[#4C8233] text-white font-bold rounded-lg hover:bg-[#3A6B25] disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {isAddingLink && <Loader2 size={14} className="animate-spin" />}
+                                Add Link
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* --- CONTENT AREA --- */}
             <div className="flex-1 overflow-y-auto p-6">
@@ -104,10 +171,10 @@ export default function CourseExplorer({ courseId, initialData, currentFolderId 
                         <div
                             key={file.id}
                             className={`bg-white p-4 rounded-2xl border shadow-sm flex flex-col items-center text-center gap-3 group transition-all aspect-square justify-center relative ${file.status === 'error'
-                                    ? 'border-red-200 bg-red-50/50'
-                                    : file.status === 'processing'
-                                        ? 'border-amber-200 bg-amber-50/50'
-                                        : 'border-gray-100 hover:border-gray-300'
+                                ? 'border-red-200 bg-red-50/50'
+                                : file.status === 'processing'
+                                    ? 'border-amber-200 bg-amber-50/50'
+                                    : 'border-gray-100 hover:border-gray-300'
                                 }`}
                         >
                             {/* Status Badge */}
@@ -130,10 +197,10 @@ export default function CourseExplorer({ courseId, initialData, currentFolderId 
                             )}
 
                             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${file.status === 'error'
-                                    ? 'bg-red-100 text-red-500'
-                                    : file.status === 'processing'
-                                        ? 'bg-amber-100 text-amber-600'
-                                        : 'bg-gray-50 text-gray-500'
+                                ? 'bg-red-100 text-red-500'
+                                : file.status === 'processing'
+                                    ? 'bg-amber-100 text-amber-600'
+                                    : 'bg-gray-50 text-gray-500'
                                 }`}>
                                 <FileText size={24} />
                             </div>
@@ -146,7 +213,20 @@ export default function CourseExplorer({ courseId, initialData, currentFolderId 
                                 <span className="text-[10px] text-amber-600 font-medium">Analyzing...</span>
                             )}
                             {file.status === 'error' && (
-                                <span className="text-[10px] text-red-500 font-medium">Failed</span>
+                                <div className="flex flex-col items-center gap-1">
+                                    <span className="text-[10px] text-red-500 font-medium">Failed</span>
+                                    <button
+                                        onClick={() => handleRetry(file.id)}
+                                        disabled={retryingId === file.id}
+                                        className="flex items-center gap-1 px-2 py-1 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg text-[10px] font-medium transition-colors disabled:opacity-50"
+                                    >
+                                        {retryingId === file.id ? (
+                                            <><Loader2 size={10} className="animate-spin" /> Retrying...</>
+                                        ) : (
+                                            <><RotateCcw size={10} /> Retry</>
+                                        )}
+                                    </button>
+                                </div>
                             )}
                         </div>
                     ))}

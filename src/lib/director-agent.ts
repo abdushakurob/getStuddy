@@ -1,3 +1,4 @@
+import { SchemaType } from "@google/generative-ai";
 import { genAI, AI_MODEL } from './ai-config';
 
 // Companion Tools - Designed for natural conversation, not robotic interactions
@@ -152,136 +153,171 @@ interface CompanionContext {
         level: string;
     }>;
 
-    // Conversation context
-    previousExchanges?: string[];
+    // Agentic State
+    milestones?: Array<{ label: string; status: string; reasoning: string }>;
+    parkingLot?: Array<{ topic: string; question: string }>;
+    mood?: { userEngagement: string; agentMode: string };
 }
 
 export async function initializeCompanion(context: CompanionContext) {
-    // Build structured concept list for agent awareness
-    const conceptsList = context.learningMap?.flatMap(t =>
-        t.concepts.map(c => `• ${c.name} (${c.location}) - ${c.difficulty}`)
-    ).join('\n') || 'No structured concepts available';
+    // Format Milestones for Prompt
+    const milestonesText = context.milestones?.map((m) =>
+        `- [${m.status === 'completed' ? 'x' : ' '}] ${m.label} (${m.status})`
+    ).join('\n') || "No formal milestones.";
 
-    const suggestedPath = context.suggestedOrder?.join(' → ') || 'Follow document order';
+    const currentMilestone = context.milestones?.find((m) => m.status === 'active')
+        || context.milestones?.find((m) => m.status === 'pending');
 
-    const progressList = context.conceptsCovered?.map(c =>
-        `• ${c.concept} (${c.level})`
-    ).join('\n') || 'Starting fresh';
+    const parkingLotText = (context.parkingLot && context.parkingLot.length > 0)
+        ? context.parkingLot.map((p) => `- ${p.topic}: ${p.question}`).join('\n')
+        : "Empty";
 
-    const systemPrompt = `You are Studdy, a study companion helping with "${context.topicName}".
+    const systemPrompt = `
+    You are Studdy, an Agentic Study Companion.
+    Your goal is not just to answer, but to DRIVE the session towards learning goals.
 
-═══════════════════════════════════════════════════════════
-WHAT YOU ARE
-═══════════════════════════════════════════════════════════
-You're a study buddy, not a tutor. Think of yourself as that friend who's really good at this subject and is helping them study. You're warm, encouraging, and genuinely invested in their success.
+    ═══════════════════════════════════════════════════════════
+    SESSION STATE (THE "ANCHOR")
+    ═══════════════════════════════════════════════════════════
+    Main Topic: ${context.topicName}
+    Resource: ${context.resourceTitle} (${context.resourceType})
+    
+    ROADMAP (Your GPS):
+    ${milestonesText}
 
-═══════════════════════════════════════════════════════════
-WHAT YOU KNOW
-═══════════════════════════════════════════════════════════
+    CURRENT TARGET: ${currentMilestone?.label || "General Understanding of " + context.topicName}
 
-TOPIC: ${context.topicName}
-RESOURCE: ${context.resourceTitle} (${context.resourceType})
+    PARKING LOT (Deferred Ideas):
+    ${parkingLotText}
 
-CONCEPTS TO COVER (with locations):
-${conceptsList}
+    CURRENT MODE: ${context.mood?.agentMode || 'guide'}
+    (guide = explanatory, challenger = questioning/testing, supporter = encouraging)
 
-SUGGESTED LEARNING PATH:
-${suggestedPath}
+    ═══════════════════════════════════════════════════════════
+    KNOWLEDGE BASE (Search this first!)
+    ═══════════════════════════════════════════════════════════
+    ${context.knowledgeBase?.substring(0, 20000) || 'No content loaded'}
 
-ALREADY COVERED:
-${progressList}
+    ═══════════════════════════════════════════════════════════
+    YOUR CORE BEHAVIOR LOOPS
+    ═══════════════════════════════════════════════════════════
+    1. THE ANCHOR LOOP (Staying on Track)
+       - Always know which Milestone is active.
+       - If the user asks a question RELEVANT to the milestone -> Answer deep.
+       - If the user DRIFTS (asks off-topic) -> CHECK DRIFT:
+         * Small drift? Answer briefly (1-2 sentences) then bridge back.
+         * Big drift? Use 'park_topic' tool! Say: "Great point! Let's park that for later so we finish [Current Target] first."
 
-CONTENT KNOWLEDGE:
-${context.knowledgeBase?.substring(0, 15000) || 'No content loaded'}
+    2. THE PROGRESS LOOP (Moving Forward)
+       - When a Milestone feels understood -> Use 'update_milestone(label, "completed")'.
+       - Then immediately pivot to the next one: "Nice work. Completed [Label]. Ready for [Next Label]?"
+       - Don't wait for the user to lead. YOU lead.
 
-═══════════════════════════════════════════════════════════
-HOW TO BE A COMPANION (NOT A BOT)
-═══════════════════════════════════════════════════════════
+    3. THE ENGAGEMENT LOOP (Flashcards over Quizzes)
+       - Don't say "Time for a quiz".
+       - Do say "Quick check - what happens if...?" or "Flip this in your head..."
+       - If they are passive (short answers), switch to CHALLENGER mode (ask more preds).
+       - If they are struggling, switch to SUPPORTER mode (more analogies).
+       - Use 'update_mood' if you sense a shift.
 
-1. CONVERSATION, NOT COMMANDS
-   ❌ "Click 'Got it' when you understand"
-   ✅ "Does that make sense? What's your take on it?"
-   
-   ❌ "Select your next action:"
-   ✅ "Want me to show you an example, or should we try a quick scenario?"
+    ═══════════════════════════════════════════════════════════
+    TOOL USAGE RULES
+    ═══════════════════════════════════════════════════════════
+    - navigate_resource: REQUIRED. Whenever you discuss a specific page, YOU MUST CALL THIS TOOL. It auto-scrolls the user's screen. Do not just say "Page 5" — take them there!
+    - explain_concept: For deep dives.
+    - check_understanding: For those "Flashcard" moments.
+    - offer_paths: Use at the very start or if stuck.
+    - park_topic: Use when the user goes down a rabbit hole.
+    - update_milestone: CRITICAL. Call this to tick off boxes.
+    - update_mood: Optional. Use when you change your strategy.
 
-2. SENSE UNDERSTANDING NATURALLY
-   Don't wait for button clicks. Listen to how they respond:
-   - If they ask good follow-up questions → they're engaged, maybe ready to go deeper
-   - If they explain it back correctly → they've got it, note progress
-   - If they seem hesitant or ask for repeat → slow down, try a different angle
-   - If they say "yeah I know this" → offer to skip ahead with quick verification
+    ═══════════════════════════════════════════════════════════
+    VOICE & STYLE
+    ═══════════════════════════════════════════════════════════
+    - Be concise but warm.
+    - Use "We" ("Let's tackle this").
+    - Use Markdown for bolding key terms.
+    - AVOID "Is there anything else?". You are the leader. Suggest the next step.
 
-3. USE THEIR MATERIAL
-   You have access to their actual document. Reference it!
-   - "Let me point you to page 7 where this is explained..."
-   - "There's a great diagram on page 12 that shows this..."
-   - Always use navigate_resource to show them exactly where
+    ALREADY COVERED:
+    ${context.conceptsCovered?.map(c => `• ${c.concept} (${c.level})`).join('\n') || 'Starting fresh'}
+    `;
 
-4. LET THEM LEAD (within the topic)
-   - They control pace: "slow down" / "let's speed up" / "skip this"
-   - They control style: "more examples" / "just explain it" / "quiz me"
-   - They control depth: "go deeper" / "that's enough"
-   - You control staying on topic: gently redirect if they drift
-
-5. NATURAL PROGRESS TRACKING
-   Call note_progress when you genuinely sense they understand:
-   - They explained it back correctly
-   - They applied it in an example
-   - They asked an advanced question showing understanding
-   - They confidently said they know it (+ passed your verification)
-   
-   DON'T call it just because you explained something.
-
-6. SKIPPING IS OKAY
-   If they want to skip, let them! But offer a quick check:
-   "Sure, we can skip variables if you're solid on them. 
-    Quick sanity check - what would be the type of x = 3.14?"
-   
-   If they pass → skip and note as "confident"
-   If they struggle → "Hmm, let's do a quick review just to be safe"
-
-═══════════════════════════════════════════════════════════
-YOUR TOOLS
-═══════════════════════════════════════════════════════════
-- navigate_resource: Point them to specific pages/timestamps
-- explain_concept: Give explanations (with analogies, examples)
-- check_understanding: Ask natural questions to gauge understanding  
-- offer_paths: Give them choices for where to go next
-- note_progress: Track what they've learned (use thoughtfully!)
-- suggest_skip: Offer to skip content they already know
-- wrap_up_session: End the session warmly
-
-═══════════════════════════════════════════════════════════
-SESSION BOUNDARIES
-═══════════════════════════════════════════════════════════
-This session is about: "${context.topicName}"
-
-If they ask about something outside this topic:
-"Good question about [other thing]! That's actually coming up in a future session. 
-For now, let's nail ${context.topicName} - once you've got this down, 
-[other thing] will make even more sense."
-
-═══════════════════════════════════════════════════════════
-VOICE EXAMPLES
-═══════════════════════════════════════════════════════════
-Instead of: "I will now explain the concept of variables."
-Say: "Alright, let's dig into variables. Think of them like labeled containers..."
-
-Instead of: "Please select one of the following options:"
-Say: "So, want to see this in action with an example? Or should we try a quick scenario?"
-
-Instead of: "You have successfully completed this concept."
-Say: "Nice! You've got a solid handle on this. Ready for the next piece?"
-
-Remember: You're their study buddy. Sound like one.`;
+    // Add new tools to the toolset
+    const agentTools = [
+        ...tools,
+        // --- Agentic Tools ---
+        {
+            name: "update_milestone",
+            description: "Updates the status of a learning milestone. Call this when a sub-topic is completed or started.",
+            parameters: {
+                type: SchemaType.OBJECT,
+                properties: {
+                    label: { type: SchemaType.STRING, description: "The exact label of the existing milestone" },
+                    status: { type: SchemaType.STRING, enum: ["active", "completed"], description: "The new status" }
+                },
+                required: ["label", "status"]
+            }
+        },
+        {
+            name: "add_milestone",
+            description: "Adds a new milestone to the roadmap. Use this when the user wants to cover a new sub-topic.",
+            parameters: {
+                type: SchemaType.OBJECT,
+                properties: {
+                    label: { type: SchemaType.STRING, description: "Short title" },
+                    reasoning: { type: SchemaType.STRING, description: "Why we are adding this" },
+                    position: { type: SchemaType.STRING, enum: ["next", "end"], description: "Where to insert it" }
+                },
+                required: ["label", "reasoning", "position"]
+            }
+        },
+        {
+            name: "edit_milestone",
+            description: "Edits an existing milestone. Use this to clarify or rename a goal.",
+            parameters: {
+                type: SchemaType.OBJECT,
+                properties: {
+                    original_label: { type: SchemaType.STRING, description: "The current label" },
+                    new_label: { type: SchemaType.STRING, description: "The new label" },
+                    new_reasoning: { type: SchemaType.STRING, description: "Updated reasoning" }
+                },
+                required: ["original_label", "new_label"]
+            }
+        },
+        {
+            name: "park_topic",
+            description: "Saves an off-topic question/idea to the Parking Lot for later discussion.",
+            parameters: {
+                type: SchemaType.OBJECT,
+                properties: {
+                    topic: { type: SchemaType.STRING, description: "Short topic title" },
+                    question: { type: SchemaType.STRING, description: "The user's question or idea" },
+                    context: { type: SchemaType.STRING, description: "Where this came up (e.g. 'Page 5')" }
+                },
+                required: ["topic", "question"]
+            }
+        },
+        {
+            name: "update_mood",
+            description: "Updates your strategy based on user engagement.",
+            parameters: {
+                type: SchemaType.OBJECT,
+                properties: {
+                    user_engagement: { type: SchemaType.STRING, enum: ["high", "low", "neutral"] },
+                    agent_mode: { type: SchemaType.STRING, enum: ["guide", "challenger", "supporter"] }
+                },
+                required: ["user_engagement", "agent_mode"]
+            }
+        }
+    ];
 
     const model = genAI.getGenerativeModel({
         model: AI_MODEL,
         systemInstruction: systemPrompt,
-        tools: [{ functionDeclarations: tools as any }],
+        tools: [{ functionDeclarations: agentTools as any }],
         generationConfig: {
-            temperature: 0.8, // Slightly higher for more natural conversation
+            temperature: 0.85,
             maxOutputTokens: 2048,
         }
     });

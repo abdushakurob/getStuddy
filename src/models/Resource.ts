@@ -31,6 +31,7 @@ export interface IResource extends Document {
     learningMap?: ILearningTopic[];
     suggestedOrder?: string[];
     totalConcepts?: number;
+    documentType?: 'educational' | 'technical' | 'literary' | 'research' | 'reference' | 'academic_planning' | 'business' | 'other';
 
     status: 'processing' | 'ready' | 'error';
     errorMessage?: string;
@@ -67,6 +68,7 @@ const ResourceSchema = new Schema<IResource>({
     learningMap: [LearningTopicSchema],
     suggestedOrder: [String],
     totalConcepts: Number,
+    documentType: { type: String, enum: ['educational', 'technical', 'literary', 'research', 'reference', 'academic_planning', 'business', 'other'] },
 
     status: { type: String, enum: ['processing', 'ready', 'error'], default: 'processing' },
     errorMessage: { type: String },

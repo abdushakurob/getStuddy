@@ -2,6 +2,15 @@
 import { SchemaType } from "@google/generative-ai";
 import { genAI, AI_MODEL } from "./ai-config";
 
+// Separate model for document analysis (no tools, JSON output)
+const analysisModel = genAI.getGenerativeModel({
+    model: AI_MODEL,
+    generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.2, // Lower for more consistent structured output
+    }
+});
+
 // Use centralized model config with tools for planning agent
 const model = genAI.getGenerativeModel({
     model: AI_MODEL,
@@ -60,40 +69,62 @@ async function urlToGenerativePart(url: string, mimeType: string) {
 
 export async function analyzeDocument(fileUrl: string, mimeType: string = "application/pdf") {
     const prompt = `
-    You are Studdy, an AI study companion designed to help students learn effectively.
+    You are Studdy, an AI companion that helps users understand and learn from any document.
     Analyze the attached document thoroughly.
     
-    GOAL: Create a structured learning guide that a companion AI can use to teach this content.
+    GOAL: Create a structured guide that an AI companion can use to help the user understand this content.
     
-    INSTRUCTIONS:
-    1. Extract ALL key concepts, organized by topic/chapter.
-    2. For each concept, note WHERE it appears (page number, section, or timestamp).
-    3. Identify prerequisite relationships (what should be learned first).
-    4. Note areas that are typically challenging for students.
-    5. Create the "distilled_content" - a comprehensive extraction of the actual content.
+    DOCUMENT TYPES YOU MIGHT ENCOUNTER:
+    - Educational: Textbooks, lecture notes, tutorials → Extract concepts and learning objectives
+    - Technical: Manuals, documentation, guides → Extract procedures, steps, and key information
+    - Literary: Novels, stories, articles → Extract themes, plot points, key ideas
+    - Research: Papers, reports, studies → Extract findings, methodology, conclusions
+    - Reference: Dictionaries, encyclopedias, handbooks → Extract entries and definitions
+    - Academic Planning: Syllabi, timetables, schedules, course outlines → Extract dates, topics, deadlines, requirements
+    - Business: Proposals, plans, presentations → Extract key points and action items
+    
+    Instructions for ANALYSIS:
+    1. Identify the document type.
+    2. **COMPREHENSIVE EXTRACTION**: Do not summarize just the first page. Scan the WHOLE document.
+    3. Extract EVERYTHING useful:
+       - **Concepts/Topics**: What is being taught?
+       - **Schedule/Timeline**: If there are dates, weeks, or units, extract them.
+       - **Requirements/Deliverables**: Assignments, quizzes, exams, weightings.
+       - **Policies/Rules**: Prerequisites, software requirements, citations.
+    
+    4. Construct the output:
+       - 'distilled_content': A structured, readable digest of ALL the above.
+       - 'learning_map': Structured hierarchy of the main topics/units.
     
     OUTPUT JSON FORMAT:
     {
-       "summary": "Brief 2-sentence summary of what this document covers...",
+       "summary": "Brief 2-sentence summary of what this document is and covers",
        
-       "distilled_content": "COMPREHENSIVE extraction of the document content. Include chapter titles, key definitions, formulas, examples, and important details. This is what the companion will reference when teaching.",
+       "document_type": "educational" | "technical" | "literary" | "research" | "reference" | "academic_planning" | "business" | "other",
+       
+       "distilled_content": "REQUIRED: A comprehensive, structured text version of the document. Include the full schedule (if present), key concepts, grading criteria, and requirements. Keep it organized.",
        
        "learning_map": [
            {
-               "topic": "Chapter/Section name",
+               "topic": "Unit 1: Introduction", 
                "concepts": [
+                   { 
+                       "name": "Programming Fundamentals (Concept)", 
+                       "location": "Page 2",
+                       "difficulty": "beginner",
+                       "key_points": ["Definition of variable", "Syntax rules"]
+                   },
                    {
-                       "name": "Concept name (e.g., 'Variable Declaration')",
-                       "location": "Page 5" or "Section 2.1" or "0:45-1:30",
-                       "prerequisites": ["Previous concept name if any"],
-                       "difficulty": "beginner" | "intermediate" | "advanced",
-                       "key_points": ["Main idea 1", "Main idea 2"]
+                        "name": "Assignment 1 (Deliverable)",
+                        "location": "Week 1",
+                        "difficulty": "intermediate",
+                        "key_points": ["Due: Sunday", "Worth 5%"]
                    }
                ]
            }
        ],
        
-       "suggested_order": ["Concept 1", "Concept 2", "..."],
+       "suggested_order": ["Topic 1", "Topic 2"],
        
        "total_concepts": 12
     }
@@ -101,19 +132,74 @@ export async function analyzeDocument(fileUrl: string, mimeType: string = "appli
 
     try {
         console.log(`[Gemini] Starting analysis for: ${fileUrl} (${mimeType})`);
-        console.log(`[Gemini] Using Model: ${model.model}`);
+        console.log(`[Gemini] Using Analysis Model with JSON mode`);
 
         const filePart = await urlToGenerativePart(fileUrl, mimeType);
 
         console.log("[Gemini] Sending request to Google AI...");
-        const result = await model.generateContent([prompt, filePart]);
+        // Use the analysis model with JSON response mode
+        const result = await analysisModel.generateContent([prompt, filePart]);
         const response = result.response;
         const text = response.text();
         console.log("[Gemini] Raw Response Preview:", text.substring(0, 100) + "...");
 
-        // Clean up functionality to ensure JSON
-        const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(jsonString);
+        // With responseMimeType: "application/json", the response should be pure JSON
+        // But add fallback extraction just in case
+        let jsonString = text.trim();
+
+        // If it starts with text before JSON, try to extract JSON
+        if (!jsonString.startsWith('{')) {
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                jsonString = jsonMatch[0];
+                console.log("[Gemini] Extracted JSON from response");
+            }
+        }
+
+        // Clean markdown code blocks if present
+        jsonString = jsonString.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+
+        // Try parsing, if it fails, attempt to repair common issues
+        try {
+            return JSON.parse(jsonString);
+        } catch (parseError: any) {
+            console.log("[Gemini] Initial JSON parse failed, attempting repair...");
+
+            // Common fixes for malformed JSON from LLMs:
+            // 1. Fix unescaped newlines in strings
+            let repaired = jsonString.replace(/(?<!\\)\n/g, '\\n');
+
+            // 2. Fix unescaped tabs
+            repaired = repaired.replace(/(?<!\\)\t/g, '\\t');
+
+            // 3. Try again
+            try {
+                return JSON.parse(repaired);
+            } catch (e2) {
+                console.log("[Gemini] Repair attempt 1 failed, trying simpler extraction...");
+
+                // Last resort: try to extract just the critical fields
+                try {
+                    const summaryMatch = text.match(/"summary"\s*:\s*"([^"]+)"/);
+                    const totalMatch = text.match(/"total_concepts"\s*:\s*(\d+)/);
+
+                    if (summaryMatch) {
+                        console.log("[Gemini] Extracted partial data from malformed JSON");
+                        return {
+                            summary: summaryMatch[1],
+                            distilled_content: summaryMatch[1], // Use summary as fallback
+                            learning_map: [],
+                            suggested_order: [],
+                            total_concepts: totalMatch ? parseInt(totalMatch[1]) : 0
+                        };
+                    }
+                } catch (e3) {
+                    // Give up
+                }
+
+                throw parseError; // Re-throw original error
+            }
+        }
     } catch (error: any) {
         console.error("Gemini Multimodal Analysis Failed:", error);
         if (error.response) {
@@ -124,6 +210,11 @@ export async function analyzeDocument(fileUrl: string, mimeType: string = "appli
 }
 
 export async function chatWithAgent(message: string, history: any[], contextText: string = "") {
+    // Check if we have materials available
+    const hasMaterials = !contextText.includes("NO MATERIALS UPLOADED YET") &&
+        !contextText.includes("NO USABLE MATERIALS YET") &&
+        !contextText.includes("[No analyzed materials available yet]");
+
     const systemInstruction = `
     You are Studdy, a warm and supportive study companion.
     
@@ -133,22 +224,46 @@ export async function chatWithAgent(message: string, history: any[], contextText
     - You adapt to how they learn - some want deep dives, others want quick hits
     
     YOUR APPROACH:
-    1. Look at what they're learning and figure out the best path through it
-       - "I looked through your Python notes. If you want to build that project, we can skip the GUI stuff and focus on data structures first."
+    ${hasMaterials ? `
+    1. You have access to their study materials - USE THEM!
+       - Reference specific topics you found: "I see you have chapters on X, Y, and Z..."
+       - Create plans based on ACTUAL content, not generic topics
     2. Work WITH them, not FOR them
        - "How does this feel? Want to go faster or take it easy?"
     3. When you've agreed on a plan, use the 'commit_study_plan' tool to save it
+    ` : `
+    1. NO MATERIALS YET - Important!
+       - The user hasn't uploaded any study materials, or they're still being processed
+       - DO NOT ask them to tell you what topics they have - that defeats the purpose!
+       - Instead, encourage them to upload their PDFs, slides, or notes
+       - You can discuss their goals and timeline, but don't commit a plan without content
+       - Example: "Before we create your study plan, could you upload your course materials? 
+         Once I can see what you're studying, I'll create a personalized plan that covers everything."
+    2. If files are processing, let them know to wait a bit
+    3. If files failed, suggest they re-upload them
+    `}
+    
+    IMPORTANT RULES:
+    - DON'T commit a plan if there are no ready materials (you'll create a useless generic plan)
+    - DON'T ask the user to list their topics - you should know from their materials!
+    - DO encourage uploading if no materials exist
+    - DO reference specific content when materials ARE available
     
     TONE:
     - Friendly, warm, helpful
     - Like a friend who's good at studying helping you out
     - Use Markdown for clarity
     
-    WHAT YOU KNOW:
+    CONTEXT (Resource status + content + other plans):
     "${contextText.substring(0, 500000)}"
     
     Today's Date: ${new Date().toISOString().split('T')[0]}
     `;
+
+    // Dynamic initial greeting based on material status
+    const initialGreeting = hasMaterials
+        ? "Hey! I've looked through your materials and I have some ideas. What's your goal with this course?"
+        : "Hey! I'm ready to help you plan your studies. I noticed you haven't uploaded any materials yet - once you add your PDFs or notes, I can create a personalized study plan based on exactly what you need to learn. What course is this for?";
 
     // 2. Start Chat
     const chat = model.startChat({
@@ -159,7 +274,7 @@ export async function chatWithAgent(message: string, history: any[], contextText
             },
             {
                 role: "model",
-                parts: [{ text: "Hey! I've looked through your materials. Ready to plan this out together?" }],
+                parts: [{ text: initialGreeting }],
             },
             ...history
         ],

@@ -39,6 +39,40 @@ const SessionSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Resource'
     },
+
+    // --- Agentic Core (Anchor & Drift) ---
+    milestones: [{
+        label: { type: String, required: true },
+        status: { type: String, enum: ['pending', 'active', 'completed'], default: 'pending' },
+        reasoning: String // Why this step matters
+    }],
+
+    parkingLot: [{
+        topic: String,
+        question: String,
+        context: String, // e.g. "Page 5"
+        addedAt: { type: Date, default: Date.now }
+    }],
+
+    mood: {
+        userEngagement: { type: String, enum: ['high', 'low', 'neutral'], default: 'neutral' },
+        agentMode: { type: String, enum: ['guide', 'challenger', 'supporter'], default: 'guide' }
+    },
+
+    highlights: [{
+        id: String,
+        text: String,
+        pageIndex: Number,
+        rects: [{
+            x: Number,
+            y: Number,
+            width: Number,
+            height: Number
+        }],
+        color: { type: String, default: 'yellow' },
+        note: String,
+        createdAt: { type: Date, default: Date.now }
+    }],
     // The "Transcript" tracks the interaction in the workspace
     transcript: [{
         role: { type: String, enum: ['user', 'assistant', 'system'], required: true },

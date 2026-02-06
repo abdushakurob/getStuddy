@@ -66,12 +66,52 @@ function handleToolCall(toolCall: any, sessionId: string) {
                 nextTimePreview: args.next_time_preview
             };
 
+        // --- Agentic Core Tools ---
+        case 'update_milestone':
+            return {
+                type: 'milestone_update',
+                milestoneLabel: args.label,
+                newStatus: args.status
+            };
+
+        case 'add_milestone':
+            return {
+                type: 'milestone_add',
+                label: args.label,
+                reasoning: args.reasoning,
+                position: args.position
+            };
+
+        case 'edit_milestone':
+            return {
+                type: 'milestone_edit',
+                originalLabel: args.original_label,
+                newLabel: args.new_label,
+                newReasoning: args.new_reasoning
+            };
+
+        case 'park_topic':
+            return {
+                type: 'parking_update',
+                action: 'add',
+                topic: args.topic,
+                question: args.question,
+                context: args.context
+            };
+
+        case 'update_mood':
+            return {
+                type: 'mood_update',
+                userEngagement: args.user_engagement,
+                agentMode: args.agent_mode
+            };
+
         default:
             return null;
     }
 }
 
-export async function sendMessageToDirector(sessionId: string, userMessage: string) {
+export async function sendMessageToDirector(sessionId: string, userMessage: string, messageRole: 'user' | 'system' = 'user') {
     const session = await auth();
     if (!session?.user?.id) throw new Error('Unauthorized');
 
@@ -81,9 +121,9 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
     const studySession = await Session.findById(sessionId);
     if (!studySession) throw new Error('Session not found');
 
-    // Add user message to transcript
+    // Add message to transcript
     studySession.transcript.push({
-        role: 'user',
+        role: messageRole,
         content: userMessage,
         timestamp: new Date()
     });
@@ -108,7 +148,7 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
         `=== ${r.title} (${r.type}) ===\n${r.knowledgeBase?.substring(0, 12000) || r.summary || ''}`
     ).join('\n\n');
 
-    // Build companion context with structured learning data
+    // Build companion context with structured learning data AND Agentic State
     const context = {
         topicName: studySession.topicName,
         sessionGoal: studySession.title,
@@ -129,6 +169,11 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
             concept: c,
             level: 'explained'
         })) || [],
+
+        // --- Agentic State (Anchor & Drift) ---
+        milestones: studySession.milestones || [],
+        parkingLot: studySession.parkingLot || [],
+        mood: studySession.mood || { userEngagement: 'neutral', agentMode: 'guide' },
 
         // Recent conversation for context
         previousExchanges: studySession.transcript.slice(-6).map((t: any) =>
@@ -169,24 +214,71 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
 
     // Update progress based on tool calls
     let progressUpdated = false;
+    let milestonesUpdated = false;
+
     for (const result of toolResults) {
         if (result?.type === 'progress_update') {
-            // Add concept with level tracking
             const existingIndex = studySession.progress.conceptsCovered.indexOf(result.concept);
             if (existingIndex === -1) {
                 studySession.progress.conceptsCovered.push(result.concept);
                 progressUpdated = true;
             }
-            // Could track levels in a separate field if needed
         } else if (result?.type === 'session_complete') {
             studySession.progress.isComplete = true;
             studySession.status = 'completed';
-            for (const concept of result.conceptsCovered || []) {
-                if (!studySession.progress.conceptsCovered.includes(concept)) {
-                    studySession.progress.conceptsCovered.push(concept);
+            // ... (existing logic) ...
+            progressUpdated = true;
+
+        } else if (result?.type === 'milestone_update') {
+            // Update milestone status in DB
+            if (studySession.milestones) {
+                const ms = studySession.milestones.find((m: any) => m.label === result.milestoneLabel);
+                if (ms) {
+                    ms.status = result.newStatus;
+                    milestonesUpdated = true;
                 }
             }
-            progressUpdated = true;
+
+        } else if (result?.type === 'milestone_add') {
+            const newMilestone = {
+                label: result.label,
+                reasoning: result.reasoning,
+                status: 'pending'
+            };
+
+            if (result.position === 'next') {
+                // Find current active index
+                const activeIdx = studySession.milestones.findIndex((m: any) => m.status === 'active');
+                const insertIdx = activeIdx !== -1 ? activeIdx + 1 : 0;
+                studySession.milestones.splice(insertIdx, 0, newMilestone);
+            } else {
+                studySession.milestones.push(newMilestone);
+            }
+            milestonesUpdated = true;
+
+        } else if (result?.type === 'milestone_edit') {
+            const ms = studySession.milestones.find((m: any) => m.label === result.originalLabel);
+            if (ms) {
+                if (result.newLabel) ms.label = result.newLabel;
+                if (result.newReasoning) ms.reasoning = result.newReasoning;
+                milestonesUpdated = true;
+            }
+
+        } else if (result?.type === 'parking_update') {
+            if (result.action === 'add') {
+                studySession.parkingLot.push({
+                    topic: result.topic,
+                    question: result.question,
+                    context: result.context,
+                    addedAt: new Date()
+                });
+            }
+            // Handle clear/remove if added later
+
+        } else if (result?.type === 'mood_update') {
+            if (!studySession.mood) studySession.mood = {};
+            if (result.userEngagement) studySession.mood.userEngagement = result.userEngagement;
+            if (result.agentMode) studySession.mood.agentMode = result.agentMode;
         }
     }
 
@@ -205,6 +297,7 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
     await studySession.save();
     revalidatePath(`/work/${sessionId}`);
 
+    // Return extended results including plan updates
     return {
         message: response.text,
         toolResults,
@@ -215,7 +308,10 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
             conceptsCovered: studySession.progress.conceptsCovered,
             estimatedTotal: context.totalConcepts || studySession.progress.estimatedTotal,
             isComplete: studySession.progress.isComplete
-        } : undefined
+        } : undefined,
+        // We could return updated milestones here for client, 
+        // but client should re-fetch session or use server actions to refresh logic
+        planAdjustment: milestonesUpdated ? { type: 'milestone_change' } : null
     };
 }
 

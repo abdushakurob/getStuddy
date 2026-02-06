@@ -14,7 +14,40 @@ export async function startSession(courseId: string, studyPlanId: string, topicN
 
     await dbConnect();
 
-    // 1. Create the session (empty transcript initially)
+    // 0. Check for existing active session for this specific topic
+    // This prevents creating duplicate sessions when the user leaves and returns
+    const existingSession = await Session.findOne({
+        userId: session.user.id,
+        studyPlanId,
+        topicName,
+        status: 'active'
+    }).select('_id');
+
+    if (existingSession) {
+        return existingSession._id.toString();
+    }
+
+    // 1. SMART RESOURCE SELECTION
+    // Fetch all resources to find the best match for this topic
+    const Resource = (await import('@/models/Resource')).default;
+    const { identifyBestResource } = await import('./resource-matcher');
+    const { generateSessionMilestones } = await import('./planning-agent'); // Import Planner
+
+    const availableResources = await Resource.find({
+        courseId,
+        status: 'ready'
+    }).select('_id title type summary documentType knowledgeBase').lean();
+
+    const selectedResourceId = await identifyBestResource(topicName, availableResources as any[]);
+
+    // Find the actual resource object to get context for planning
+    const selectedResource = availableResources.find(r => r._id.toString() === selectedResourceId);
+    const contextSummary = selectedResource?.summary || selectedResource?.knowledgeBase || "";
+
+    // 1b. GENERATE ROADMAP (AGENTIC)
+    const milestones = await generateSessionMilestones(topicName, contextSummary);
+
+    // 2. Create the session
     const newSession = await Session.create({
         userId: session.user.id,
         courseId,
@@ -22,30 +55,47 @@ export async function startSession(courseId: string, studyPlanId: string, topicN
         title: `Focus: ${topicName}`,
         topicName,
         status: 'active',
+        currentResourceId: selectedResourceId,
+        milestones: milestones.map(m => ({
+            label: m.label,
+            reasoning: m.reasoning,
+            status: 'pending'
+        })),
+        // Mark first as active if exists
+        ...(milestones.length > 0 && {
+            'milestones.0.status': 'active' // Actually just set it in map closer
+        }),
         transcript: []
     });
 
-    // 2. Trigger the agent to generate the initial greeting with actions
+    // Fix status for first milestone manually since mixed types in create can be tricky
+    if (newSession.milestones && newSession.milestones.length > 0) {
+        newSession.milestones[0].status = 'active';
+        await newSession.save();
+    }
+
+    // 3. Trigger the agent to generate the initial greeting with actions
     const { sendMessageToDirector } = await import('./actions-director');
-    
+
     try {
         // Wait for agent to generate greeting - this ensures user sees the greeting when they land on the page
         await sendMessageToDirector(
-            newSession._id.toString(), 
-            `[New session] Greet the student warmly and use the suggest_actions tool to offer them 2-3 ways to start learning about "${topicName}".`
+            newSession._id.toString(),
+            `[New session] Briefly welcome the student as a supportive companion, then IMMEDIATELY pivot to the first milestone: "${milestones[0]?.label || topicName}". Ask if they are ready to dive in or if they want to adjust the plan first.`,
+            'system'
         );
     } catch (error) {
+        // ... fallback ...
         console.error('Failed to generate initial greeting:', error);
-        // Fallback: Add a simple greeting if agent fails
         newSession.transcript.push({
             role: 'assistant',
-            content: `Hey! Ready to learn about **${topicName}**? Let me know how you'd like to start!`,
+            content: `Hey! Ready to learn about **${topicName}**? Let's start with **${milestones[0]?.label || 'the basics'}**!`,
             timestamp: new Date()
         });
         await newSession.save();
     }
 
-    // 3. Return ID (Client will redirect)
+    // 4. Return ID (Client will redirect)
     return newSession._id.toString();
 }
 
@@ -65,13 +115,22 @@ export async function getSession(sessionId: string) {
     if (sess.userId.toString() !== session.user.id) return null;
 
     // FETCH RELEVANT RESOURCE
-    // Heuristic: Find a resource whose title matches the topic, or just the most recent one.
-    // In a real app, the `StudyPlan` tasks would link to specific `ResourceIds`.
-    // For now, we grab the most recent resource in the course as a fallback.
-    const resource = await Resource.findOne({ courseId: sess.courseId })
-        .sort({ createdAt: -1 })
-        .select('title type fileUrl')
-        .lean();
+    // Prioritize the one explicitly linked to this session
+    let resource;
+
+    if (sess.currentResourceId) {
+        resource = await Resource.findById(sess.currentResourceId)
+            .select('title type fileUrl')
+            .lean();
+    }
+
+    // Fallback if no specific resource link or link is broken
+    if (!resource) {
+        resource = await Resource.findOne({ courseId: sess.courseId })
+            .sort({ createdAt: -1 })
+            .select('title type fileUrl')
+            .lean();
+    }
 
     return {
         ...sess,
@@ -90,6 +149,26 @@ export async function getSession(sessionId: string) {
                 priority: a.priority
             }))
         })),
+        // Serialize resourceId
+        currentResourceId: sess.currentResourceId?.toString(),
+
+        // Serialize new Agentic fields
+        milestones: sess.milestones?.map((m: any) => ({
+            _id: m._id?.toString(), // Mongoose adds _id to subdocs
+            label: m.label,
+            status: m.status,
+            reasoning: m.reasoning
+        })) || [],
+
+        parkingLot: sess.parkingLot?.map((p: any) => ({
+            _id: p._id?.toString(),
+            topic: p.topic,
+            question: p.question,
+            addedAt: p.addedAt.toISOString()
+        })) || [],
+
+        mood: sess.mood || { userEngagement: 'neutral', agentMode: 'guide' },
+
         // Serialize progress
         progress: {
             conceptsCovered: sess.progress?.conceptsCovered || [],
@@ -102,6 +181,43 @@ export async function getSession(sessionId: string) {
             title: resource.title,
             type: resource.type,
             fileUrl: resource.fileUrl
-        } : null
+        } : null,
+
+        highlights: sess.highlights?.map((h: any) => ({
+            _id: h._id?.toString(),
+            text: h.text,
+            pageIndex: h.pageIndex,
+            rects: h.rects,
+            color: h.color,
+            note: h.note
+        })) || []
     };
+}
+
+export async function saveHighlight(sessionId: string, highlight: any) {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error('Unauthorized');
+
+    await dbConnect();
+
+    await Session.findByIdAndUpdate(
+        sessionId,
+        { $push: { highlights: highlight } }
+    );
+
+    revalidatePath(`/work/${sessionId}`);
+}
+
+export async function deleteHighlight(sessionId: string, highlightId: string) {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error('Unauthorized');
+
+    await dbConnect();
+
+    await Session.findByIdAndUpdate(
+        sessionId,
+        { $pull: { highlights: { _id: highlightId } } }
+    );
+
+    revalidatePath(`/work/${sessionId}`);
 }

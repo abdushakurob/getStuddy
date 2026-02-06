@@ -52,6 +52,9 @@ const handleFile = async ({ file, metadata }: any) => {
                     if (analysis.total_concepts) {
                         resource.totalConcepts = analysis.total_concepts;
                     }
+                    if (analysis.document_type) {
+                        resource.documentType = analysis.document_type;
+                    }
 
                     resource.status = 'ready';
                     resource.errorMessage = undefined;

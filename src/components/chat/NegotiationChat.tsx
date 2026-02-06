@@ -105,12 +105,11 @@ export default function NegotiationChat({ courseId, existingPlan }: { courseId: 
             {/* Messages Area */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#F9FAFB]">
 
-                {messages.length === 0 && !activePlan && (
+                {/* Loading state only shown when messages haven't loaded yet */}
+                {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-center opacity-50 px-10">
-                        <Bot size={48} className="text-[#4C8233] mb-4" />
-                        <p className="font-bold text-gray-400">
-                            "Hey! I've looked through your materials. Ready to plan this out together?"
-                        </p>
+                        <div className="w-8 h-8 border-2 border-[#4C8233]/30 border-t-[#4C8233] rounded-full animate-spin mb-4" />
+                        <p className="font-bold text-gray-400">Loading...</p>
                     </div>
                 )}
 

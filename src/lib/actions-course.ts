@@ -210,15 +210,31 @@ export async function retryResourceAnalysis(resourceId: string) {
     resource.errorMessage = undefined;
     await resource.save();
 
+    // Determine mime type from resource type
+    const mimeTypeMap: Record<string, string> = {
+        'pdf': 'application/pdf',
+        'image': 'image/jpeg',
+        'video': 'video/mp4',
+        'audio': 'audio/mpeg',
+        'slide': 'application/pdf',
+        'note': 'application/pdf'
+    };
+    const mimeType = mimeTypeMap[resource.type] || 'application/pdf';
+
     // Re-trigger analysis
     const { analyzeDocument } = await import('@/lib/gemini');
 
     try {
-        const analysis = await analyzeDocument(resource.fileUrl, 'application/pdf');
+        const analysis = await analyzeDocument(resource.fileUrl, mimeType);
 
         if (analysis) {
             resource.knowledgeBase = analysis.distilled_content || analysis.summary;
             resource.summary = analysis.summary;
+            // Save structured learning data
+            resource.learningMap = analysis.learning_map;
+            resource.suggestedOrder = analysis.suggested_order;
+            resource.totalConcepts = analysis.total_concepts;
+            resource.documentType = analysis.document_type;
             resource.status = 'ready';
             resource.errorMessage = undefined;
         } else {
@@ -239,4 +255,47 @@ export async function retryResourceAnalysis(resourceId: string) {
         revalidatePath(`/dashboard/courses`);
         return { success: false, message: resource.errorMessage };
     }
+}
+
+export async function addYouTubeResource(courseId: string, folderId: string | null, url: string) {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error('Unauthorized');
+
+    // Basic YouTube Validation
+    const ytRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/;
+    if (!ytRegex.test(url)) throw new Error('Invalid YouTube URL');
+
+    await dbConnect();
+
+    // Fetch Metadata via oEmbed
+    let title = 'YouTube Video';
+    let summary = '';
+    try {
+        const oEmbedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+        const res = await fetch(oEmbedUrl);
+        if (res.ok) {
+            const data = await res.json();
+            title = data.title;
+            // storing thumbnail in summary logic or metadata could be good, for now just title
+            summary = `Video by ${data.author_name}`;
+        }
+    } catch (e) {
+        console.error("Failed to fetch YouTube metadata", e);
+    }
+
+    await Resource.create({
+        userId: session.user.id,
+        courseId,
+        folderId: folderId || null,
+        title,
+        type: 'video',
+        fileUrl: url,
+        status: 'ready', // ready immediately
+        summary,
+        knowledgeBase: `[YouTube Video] ${url} \nTitle: ${title}`, // Placeholder for transcript
+        createdAt: new Date(),
+        retryCount: 0
+    });
+
+    revalidatePath(`/dashboard/courses/${courseId}`);
 }

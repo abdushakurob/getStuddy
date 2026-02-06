@@ -3,13 +3,16 @@
 import { useEffect } from 'react';
 import { useResource } from '@/context/ResourceContext';
 
+import { Highlight } from '@/context/ResourceContext';
+
 interface ResourceInitializerProps {
     fileUrl: string;
     fileType: string;
+    initialHighlights?: Highlight[];
 }
 
-export default function ResourceInitializer({ fileUrl, fileType }: ResourceInitializerProps) {
-    const { setCurrentResource } = useResource();
+export default function ResourceInitializer({ fileUrl, fileType, initialHighlights = [] }: ResourceInitializerProps) {
+    const { setCurrentResource, setHighlights } = useResource();
 
     useEffect(() => {
         if (fileUrl && fileType) {
@@ -18,7 +21,10 @@ export default function ResourceInitializer({ fileUrl, fileType }: ResourceIniti
                 type: fileType
             });
         }
-    }, [fileUrl, fileType, setCurrentResource]);
+        if (initialHighlights) {
+            setHighlights(initialHighlights);
+        }
+    }, [fileUrl, fileType, initialHighlights, setCurrentResource, setHighlights]);
 
     return null; // This is just an initializer, no UI
 }
