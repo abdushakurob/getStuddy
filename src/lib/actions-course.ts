@@ -205,56 +205,72 @@ export async function retryResourceAnalysis(resourceId: string) {
     if (!resource) throw new Error('Resource not found');
     if (resource.status === 'ready') return { success: true, message: 'Already analyzed' };
 
-    // Reset to processing
+    // Reset to processing immediately
     resource.status = 'processing';
     resource.errorMessage = undefined;
+    resource.retryCount = (resource.retryCount || 0) + 1;
     await resource.save();
 
-    // Determine mime type from resource type
-    const mimeTypeMap: Record<string, string> = {
-        'pdf': 'application/pdf',
-        'image': 'image/jpeg',
-        'video': 'video/mp4',
-        'audio': 'audio/mpeg',
-        'slide': 'application/pdf',
-        'note': 'application/pdf'
-    };
-    const mimeType = mimeTypeMap[resource.type] || 'application/pdf';
+    revalidatePath(`/dashboard/courses`); // Immediate UI update
 
-    // Re-trigger analysis
-    const { analyzeDocument } = await import('@/lib/gemini');
+    // Trigger Analysis in Background (Fire and Forget)
+    (async () => {
+        try {
+            const { analyzeDocument } = await import('@/lib/gemini');
 
-    try {
-        const analysis = await analyzeDocument(resource.fileUrl, mimeType);
+            // Determine mime type
+            const mimeTypeMap: Record<string, string> = {
+                'pdf': 'application/pdf',
+                'image': 'image/jpeg',
+                'video': 'video/mp4',
+                'audio': 'audio/mpeg',
+                'slide': 'application/pdf',
+                'note': 'application/pdf',
+                'video_lecture': 'video/mp4' // Validation fix
+            };
+            const mimeType = mimeTypeMap[resource.type] || 'application/pdf';
 
-        if (analysis) {
-            resource.knowledgeBase = analysis.distilled_content || analysis.summary;
-            resource.summary = analysis.summary;
-            // Save structured learning data
-            resource.learningMap = analysis.learning_map;
-            resource.suggestedOrder = analysis.suggested_order;
-            resource.totalConcepts = analysis.total_concepts;
-            resource.documentType = analysis.document_type;
-            resource.status = 'ready';
-            resource.errorMessage = undefined;
-        } else {
-            resource.status = 'error';
-            resource.errorMessage = 'AI analysis returned empty result';
+            const analysis = await analyzeDocument(resource.fileUrl, mimeType);
+
+            if (analysis) {
+                // Update resource with results
+                const resourceToUpdate = await Resource.findById(resource._id);
+                if (resourceToUpdate) {
+                    resourceToUpdate.knowledgeBase = analysis.distilled_content || analysis.summary;
+                    resourceToUpdate.summary = analysis.summary;
+                    resourceToUpdate.learningMap = analysis.learning_map;
+                    resourceToUpdate.suggestedOrder = analysis.suggested_order;
+                    resourceToUpdate.totalConcepts = analysis.total_concepts;
+                    resourceToUpdate.documentType = analysis.document_type;
+                    resourceToUpdate.status = 'ready';
+                    resourceToUpdate.errorMessage = undefined;
+                    await resourceToUpdate.save();
+                }
+            } else {
+                const resourceToUpdate = await Resource.findById(resource._id);
+                if (resourceToUpdate) {
+                    resourceToUpdate.status = 'error';
+                    resourceToUpdate.errorMessage = 'AI analysis returned empty result';
+                    await resourceToUpdate.save();
+                }
+            }
+        } catch (e: any) {
+            console.error(`Background Retry Failed for ${resourceId}:`, e);
+            const resourceToUpdate = await Resource.findById(resource._id);
+            if (resourceToUpdate) {
+                resourceToUpdate.status = 'error';
+                // Timeout handling
+                if (e.message?.includes('timeout') || e.name === 'AbortError') {
+                    resourceToUpdate.errorMessage = 'Analysis timed out (10m limit).';
+                } else {
+                    resourceToUpdate.errorMessage = e?.message || 'Analysis failed';
+                }
+                await resourceToUpdate.save();
+            }
         }
-        await resource.save();
+    })();
 
-        revalidatePath(`/dashboard/courses`);
-        return { success: resource.status === 'ready', message: resource.errorMessage };
-
-    } catch (e: any) {
-        resource.status = 'error';
-        resource.errorMessage = e?.message || 'Analysis failed';
-        resource.retryCount = (resource.retryCount || 0) + 1;
-        await resource.save();
-
-        revalidatePath(`/dashboard/courses`);
-        return { success: false, message: resource.errorMessage };
-    }
+    return { success: true, message: 'Analysis started' };
 }
 
 export async function addYouTubeResource(courseId: string, folderId: string | null, url: string) {

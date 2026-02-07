@@ -164,7 +164,21 @@ export default function CourseExplorer({ courseId, initialData, currentFolderId 
                             >
                                 {/* Status Icon Overlay */}
                                 {file.status === 'processing' && <Loader2 size={16} className="absolute top-2 right-2 animate-spin text-amber-500" />}
-                                {file.status === 'error' && <span className="absolute top-2 right-2 flex items-center justify-center w-5 h-5 bg-red-500 text-white font-bold text-xs rounded-full">!</span>}
+                                {file.status === 'error' && <span className="absolute top-2 right-2 flex items-center justify-center w-5 h-5 bg-red-500 text-white font-bold text-xs rounded-full cursor-help" title={file.errorMessage}>!</span>}
+                                {file.status === 'error' && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleRetry(file.id);
+                                        }}
+                                        disabled={retryingId === file.id}
+                                        className="absolute top-2 right-8 w-5 h-5 bg-white rounded-full flex items-center justify-center text-gray-500 hover:text-black shadow-sm transition-colors z-10"
+                                        title="Retry Analysis"
+                                    >
+                                        <RotateCcw size={12} className={retryingId === file.id ? "animate-spin" : ""} />
+                                    </button>
+                                )}
                                 {file.status === 'ready' && <span className="absolute top-2 right-2 flex items-center justify-center w-4 h-4 bg-green-500 text-white font-bold text-[10px] rounded-full">✓</span>}
 
                                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${file.status === 'error' ? 'bg-red-100 text-red-500' : file.status === 'processing' ? 'bg-amber-100 text-amber-600' : 'bg-gray-50 text-gray-500'}`}>
@@ -227,8 +241,16 @@ export default function CourseExplorer({ courseId, initialData, currentFolderId 
                                     {file.status === 'error' && (
                                         <div className="flex items-center gap-2">
                                             <span className="flex items-center gap-1 text-[10px] text-red-600 font-bold bg-red-100 px-2 py-1 rounded-full">Failed</span>
-                                            <button onClick={() => handleRetry(file.id)} className="p-1 hover:bg-red-200 rounded-full text-red-500 transition-colors" title="Retry">
-                                                <RotateCcw size={14} />
+                                            <button
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    handleRetry(file.id);
+                                                }}
+                                                className="p-1 hover:bg-red-200 rounded-full text-red-500 transition-colors"
+                                                title="Retry"
+                                            >
+                                                <RotateCcw size={14} className={retryingId === file.id ? "animate-spin" : ""} />
                                             </button>
                                         </div>
                                     )}
