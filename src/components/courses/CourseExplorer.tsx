@@ -99,6 +99,20 @@ export default function CourseExplorer({ courseId, initialData, currentFolderId 
                         </button>
                     </div>
 
+                    {/* Bulk Retry Button */}
+                    {initialData.resources.some(r => r.status === 'error') && (
+                        <button
+                            onClick={async () => {
+                                const { retryAllFailedResources } = await import('@/lib/actions-course');
+                                await retryAllFailedResources(courseId);
+                            }}
+                            className="flex items-center gap-2 px-3 py-2 bg-red-100 text-red-600 rounded-xl text-sm font-bold hover:bg-red-200 transition-colors"
+                        >
+                            <RotateCcw size={16} />
+                            <span>Retry All Failed</span>
+                        </button>
+                    )}
+
                     <div className="w-px h-6 bg-gray-200 mx-1" />
 
                     <button

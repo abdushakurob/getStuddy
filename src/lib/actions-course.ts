@@ -217,21 +217,28 @@ export async function retryResourceAnalysis(resourceId: string) {
     (async () => {
         try {
             const { analyzeDocument, analyzeYouTubeVideo } = await import('@/lib/gemini');
-            let analysis;
 
-            // Check if resource is video (which uses YouTube logic in this app)
-            if (resource.type === 'video' || resource.type === 'video_lecture') {
+            let analysis: any;
+
+            // Check if it's a YouTube video
+            if (resource.type === 'video' || resource.documentType === 'video_lecture' || resource.fileUrl.includes('youtube.com') || resource.fileUrl.includes('youtu.be')) {
+                console.log(`[Retry] Processing YouTube Video: ${resource.fileUrl}`);
+                // Use the YouTube-specific analyzer
                 analysis = await analyzeYouTubeVideo(resource.fileUrl);
             } else {
                 // Determine mime type
                 const mimeTypeMap: Record<string, string> = {
                     'pdf': 'application/pdf',
                     'image': 'image/jpeg',
+                    'video': 'video/mp4',
                     'audio': 'audio/mpeg',
                     'slide': 'application/pdf',
-                    'note': 'application/pdf'
+                    'note': 'application/pdf',
+                    'video_lecture': 'video/mp4' // Validation fix
                 };
                 const mimeType = mimeTypeMap[resource.type] || 'application/pdf';
+
+                console.log(`[Retry] Processing Document: ${resource.fileUrl} (${mimeType})`);
                 analysis = await analyzeDocument(resource.fileUrl, mimeType);
             }
 
@@ -244,7 +251,10 @@ export async function retryResourceAnalysis(resourceId: string) {
                     resourceToUpdate.learningMap = analysis.learning_map;
                     resourceToUpdate.suggestedOrder = analysis.suggested_order;
                     resourceToUpdate.totalConcepts = analysis.total_concepts;
-                    resourceToUpdate.documentType = analysis.document_type;
+                    // Only update type if it was missing or generic
+                    if (analysis.document_type) {
+                        resourceToUpdate.documentType = analysis.document_type;
+                    }
                     resourceToUpdate.status = 'ready';
                     resourceToUpdate.errorMessage = undefined;
                     await resourceToUpdate.save();
@@ -274,6 +284,36 @@ export async function retryResourceAnalysis(resourceId: string) {
     })();
 
     return { success: true, message: 'Analysis started' };
+}
+
+// Bulk Retry Action
+export async function retryAllFailedResources(courseId: string) {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error('Unauthorized');
+
+    await dbConnect();
+
+    // Find all failed resources for this course
+    const failedResources = await Resource.find({
+        courseId,
+        userId: session.user.id,
+        status: 'error'
+    });
+
+    if (failedResources.length === 0) {
+        return { success: true, message: 'No failed resources found' };
+    }
+
+    // Trigger retry for each
+    // We do NOT await the individual background processes here, 
+    // but the retryResourceAnalysis function itself is async (the background part is inside it).
+    // The loop initiates the processing.
+    const results = await Promise.allSettled(
+        failedResources.map(resource => retryResourceAnalysis(resource._id.toString()))
+    );
+
+    revalidatePath(`/dashboard/courses/${courseId}`);
+    return { success: true, count: failedResources.length };
 }
 
 export async function addYouTubeResource(courseId: string, folderId: string | null, url: string) {
