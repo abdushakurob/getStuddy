@@ -32,7 +32,7 @@ export default function Sidebar() {
             {/* Core Nav */}
             <nav className="space-y-3 mb-8">
                 <NavItem href="/dashboard" icon={<LayoutDashboard size={20} />} label="Overview" active={pathname === '/dashboard' || pathname === '/dashboard/'} />
-                <NavItem href="/dashboard/courses" icon={<FolderOpen size={20} />} label="My Courses" active={pathname.startsWith('/dashboard/courses')} />
+                <NavItem href="/dashboard/courses" icon={<FolderOpen size={20} />} label="Library" active={pathname.startsWith('/dashboard/courses')} />
                 <NavItem href="/dashboard/settings" icon={<Settings size={20} />} label="Settings" active={pathname === '/dashboard/settings'} />
             </nav>
 

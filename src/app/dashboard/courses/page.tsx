@@ -11,7 +11,7 @@ export default async function CoursesPage() {
             {/* Header */}
             <div className="flex items-center justify-between mb-10">
                 <div>
-                    <h1 className="text-3xl font-black text-[#1F2937]">My Courses</h1>
+                    <h1 className="text-3xl font-black text-[#1F2937]">Library</h1>
                     <p className="text-gray-500 font-medium mt-1">Manage your syllabus and materials.</p>
                 </div>
                 <CreateCourseForm />

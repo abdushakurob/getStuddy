@@ -65,14 +65,14 @@ export default async function DashboardPage() {
                 </div>
             )}
 
-            {/* --- MY COURSES --- */}
+            {/* --- LIBRARY --- */}
             <div className="mb-12">
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-bold text-[#1F2937] flex items-center gap-2">
                         <FolderOpen size={20} className="text-gray-400" />
-                        <span>My Library</span>
+                        <span>Library</span>
                     </h2>
-                    <Link href="/dashboard/courses/new" className="text-sm font-bold text-[#4C8233] hover:underline flex items-center gap-1">
+                    <Link href="/dashboard/courses" className="text-sm font-bold text-[#4C8233] hover:underline flex items-center gap-1">
                         <Plus size={16} /> New Course
                     </Link>
                 </div>
@@ -103,10 +103,10 @@ export default async function DashboardPage() {
                         ))}
 
                         {/* Add New Card */}
-                        <Link href="/dashboard/courses/new" className="group block h-full">
+                        <Link href="/dashboard/courses" className="group block h-full">
                             <div className="border-2 border-dashed border-gray-200 rounded-[24px] p-6 flex flex-col items-center justify-center h-full text-gray-400 hover:border-[#4C8233] hover:text-[#4C8233] hover:bg-[#4C8233]/5 transition-all min-h-[180px]">
                                 <Plus size={32} className="mb-2" />
-                                <span className="font-bold">Add Material</span>
+                                <span className="font-bold">Add Course</span>
                             </div>
                         </Link>
                     </div>
@@ -117,7 +117,7 @@ export default async function DashboardPage() {
                         </div>
                         <h3 className="text-lg font-bold text-gray-900 mb-2">Library Empty</h3>
                         <p className="text-gray-500 mb-6 max-w-sm mx-auto">Upload a syllabus, YouTube playlist, or textbook to start learning.</p>
-                        <Link href="/dashboard/courses/new" className="inline-flex items-center gap-2 px-6 py-3 bg-[#4C8233] text-white rounded-2xl font-bold hover:bg-[#3D6A29] transition-colors">
+                        <Link href="/dashboard/courses" className="inline-flex items-center gap-2 px-6 py-3 bg-[#4C8233] text-white rounded-2xl font-bold hover:bg-[#3D6A29] transition-colors">
                             <Plus size={18} />
                             <span>Create First Course</span>
                         </Link>

@@ -59,7 +59,7 @@ export default function LandingPage() {
                     transition={{ duration: 0.6, delay: 0.3 }}
                     className="flex flex-col sm:flex-row gap-4 justify-center w-full max-w-sm mx-auto z-20"
                 >
-                    <Link href="/dashboard/upload" className="flex-1 btn-primary flex items-center justify-center gap-2 group">
+                    <Link href="/dashboard" className="flex-1 btn-primary flex items-center justify-center gap-2 group">
                         Get Started Free <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                     </Link>
                     <Link href="#features" className="flex-1 btn-secondary flex items-center justify-center">
