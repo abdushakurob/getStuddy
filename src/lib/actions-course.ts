@@ -216,21 +216,24 @@ export async function retryResourceAnalysis(resourceId: string) {
     // Trigger Analysis in Background (Fire and Forget)
     (async () => {
         try {
-            const { analyzeDocument } = await import('@/lib/gemini');
+            const { analyzeDocument, analyzeYouTubeVideo } = await import('@/lib/gemini');
+            let analysis;
 
-            // Determine mime type
-            const mimeTypeMap: Record<string, string> = {
-                'pdf': 'application/pdf',
-                'image': 'image/jpeg',
-                'video': 'video/mp4',
-                'audio': 'audio/mpeg',
-                'slide': 'application/pdf',
-                'note': 'application/pdf',
-                'video_lecture': 'video/mp4' // Validation fix
-            };
-            const mimeType = mimeTypeMap[resource.type] || 'application/pdf';
-
-            const analysis = await analyzeDocument(resource.fileUrl, mimeType);
+            // Check if resource is video (which uses YouTube logic in this app)
+            if (resource.type === 'video' || resource.type === 'video_lecture') {
+                analysis = await analyzeYouTubeVideo(resource.fileUrl);
+            } else {
+                // Determine mime type
+                const mimeTypeMap: Record<string, string> = {
+                    'pdf': 'application/pdf',
+                    'image': 'image/jpeg',
+                    'audio': 'audio/mpeg',
+                    'slide': 'application/pdf',
+                    'note': 'application/pdf'
+                };
+                const mimeType = mimeTypeMap[resource.type] || 'application/pdf';
+                analysis = await analyzeDocument(resource.fileUrl, mimeType);
+            }
 
             if (analysis) {
                 // Update resource with results
