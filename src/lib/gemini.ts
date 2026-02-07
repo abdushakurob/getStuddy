@@ -8,9 +8,9 @@ const analysisModel = genAI.getGenerativeModel({
     generationConfig: {
         responseMimeType: "application/json",
         temperature: 0.2, // Lower for more consistent structured output
-    },
-    // Add explicit timeout to prevent infinite hanging
-    requestOptions: { timeout: 600000 } // 10 minutes (for long videos/PDFs)
+    }
+}, {
+    timeout: 600000 // 10 minutes (for long videos/PDFs)
 });
 
 // Use centralized model config with tools for planning agent
