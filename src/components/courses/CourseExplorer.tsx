@@ -1,7 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Folder, FileText, MoreVertical, Plus, ChevronRight, Home, Upload, Loader2, ArrowLeft, RotateCcw } from 'lucide-react';
+import {
+    Folder, FileText, MoreVertical, Plus, ChevronRight, Home, Upload, Loader2, ArrowLeft, RotateCcw,
+    LayoutGrid, List, Music, Video, Image as ImageIcon, Presentation
+} from 'lucide-react';
 import Link from 'next/link';
 import { createFolder, retryResourceAnalysis } from '@/lib/actions-course';
 import { useFormStatus } from 'react-dom';
@@ -21,6 +24,7 @@ interface ExplorerProps {
 export default function CourseExplorer({ courseId, initialData, currentFolderId }: ExplorerProps) {
     const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
     const [retryingId, setRetryingId] = useState<string | null>(null);
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
     const handleRetry = async (resourceId: string) => {
         setRetryingId(resourceId);
@@ -33,8 +37,16 @@ export default function CourseExplorer({ courseId, initialData, currentFolderId 
         }
     };
 
-    // In a real app, we'd use useOptimistic or SWR to handle navigation state without full page reloads,
-    // but for now we rely on Server Component navigation (Link) for simplicity and SEO/Url correctness.
+    // Helper to get icon by file type
+    const getFileIcon = (type: string) => {
+        switch (type) {
+            case 'video': return <Video size={24} />;
+            case 'audio': return <Music size={24} />;
+            case 'image': return <ImageIcon size={24} />;
+            case 'slide': return <Presentation size={24} />;
+            default: return <FileText size={24} />;
+        }
+    };
 
     // State for Unified Modal
     const [isAddContentOpen, setIsAddContentOpen] = useState(false);
@@ -71,6 +83,24 @@ export default function CourseExplorer({ courseId, initialData, currentFolderId 
 
                 {/* Actions */}
                 <div className="flex items-center gap-3">
+                    {/* View Toggle */}
+                    <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1">
+                        <button
+                            onClick={() => setViewMode('grid')}
+                            className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white shadow text-black' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                            <LayoutGrid size={16} />
+                        </button>
+                        <button
+                            onClick={() => setViewMode('list')}
+                            className={`p-1.5 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white shadow text-black' : 'text-gray-400 hover:text-gray-600'}`}
+                        >
+                            <List size={16} />
+                        </button>
+                    </div>
+
+                    <div className="w-px h-6 bg-gray-200 mx-1" />
+
                     <button
                         onClick={() => setIsCreateFolderOpen(true)}
                         className="p-2 bg-gray-100 text-gray-500 hover:text-gray-900 rounded-xl hover:bg-gray-200 transition-colors"
@@ -86,7 +116,6 @@ export default function CourseExplorer({ courseId, initialData, currentFolderId 
                         <Plus size={16} />
                         <span>Add Material</span>
                     </button>
-                    {/* Previous UploadButton and Link buttons replaced */}
                 </div>
             </div>
 
@@ -103,89 +132,112 @@ export default function CourseExplorer({ courseId, initialData, currentFolderId 
                     </div>
                 )}
 
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+                {/* GRID VIEW */}
+                {viewMode === 'grid' && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4">
+                        {/* Folders */}
+                        {initialData.folders.map((folder: any) => (
+                            <Link
+                                key={folder.id}
+                                href={`/dashboard/courses/${courseId}?folderId=${folder.id}`}
+                                className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center text-center gap-3 group hover:border-[#4C8233] hover:shadow-md transition-all aspect-square justify-center cursor-pointer"
+                            >
+                                <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center group-hover:bg-[#4C8233]/10 group-hover:text-[#4C8233] transition-colors">
+                                    <Folder size={24} fill="currentColor" className="opacity-80" />
+                                </div>
+                                <span className="text-xs font-bold text-gray-600 group-hover:text-black line-clamp-2 leading-tight">
+                                    {folder.name}
+                                </span>
+                            </Link>
+                        ))}
 
-                    {/* Folders */}
-                    {initialData.folders.map((folder: any) => (
-                        <Link
-                            key={folder.id}
-                            href={`/dashboard/courses/${courseId}?folderId=${folder.id}`}
-                            className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center text-center gap-3 group hover:border-[#4C8233] hover:shadow-md transition-all aspect-square justify-center cursor-pointer"
-                        >
-                            <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center group-hover:bg-[#4C8233]/10 group-hover:text-[#4C8233] transition-colors">
-                                <Folder size={24} fill="currentColor" className="opacity-80" />
+                        {/* Files */}
+                        {initialData.resources.map((file: any) => (
+                            <div
+                                key={file.id}
+                                className={`bg-white p-4 rounded-2xl border shadow-sm flex flex-col items-center text-center gap-3 group transition-all aspect-square justify-center relative ${file.status === 'error'
+                                    ? 'border-red-200 bg-red-50/50'
+                                    : file.status === 'processing'
+                                        ? 'border-amber-200 bg-amber-50/50'
+                                        : 'border-gray-100 hover:border-gray-300'
+                                    }`}
+                            >
+                                {/* Status Icon Overlay */}
+                                {file.status === 'processing' && <Loader2 size={16} className="absolute top-2 right-2 animate-spin text-amber-500" />}
+                                {file.status === 'error' && <span className="absolute top-2 right-2 flex items-center justify-center w-5 h-5 bg-red-500 text-white font-bold text-xs rounded-full">!</span>}
+                                {file.status === 'ready' && <span className="absolute top-2 right-2 flex items-center justify-center w-4 h-4 bg-green-500 text-white font-bold text-[10px] rounded-full">✓</span>}
+
+                                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${file.status === 'error' ? 'bg-red-100 text-red-500' : file.status === 'processing' ? 'bg-amber-100 text-amber-600' : 'bg-gray-50 text-gray-500'}`}>
+                                    {getFileIcon(file.type)}
+                                </div>
+                                <span className="text-xs font-bold text-gray-600 line-clamp-2 leading-tight break-all">
+                                    {file.title}
+                                </span>
                             </div>
-                            <span className="text-xs font-bold text-gray-600 group-hover:text-black line-clamp-2 leading-tight">
-                                {folder.name}
-                            </span>
-                        </Link>
-                    ))}
+                        ))}
+                    </div>
+                )}
 
-                    {/* Files */}
-                    {initialData.resources.map((file: any) => (
-                        <div
-                            key={file.id}
-                            className={`bg-white p-4 rounded-2xl border shadow-sm flex flex-col items-center text-center gap-3 group transition-all aspect-square justify-center relative ${file.status === 'error'
-                                ? 'border-red-200 bg-red-50/50'
-                                : file.status === 'processing'
-                                    ? 'border-amber-200 bg-amber-50/50'
-                                    : 'border-gray-100 hover:border-gray-300'
-                                }`}
-                        >
-                            {/* Status Badge */}
-                            {file.status === 'processing' && (
-                                <div className="absolute top-2 right-2">
-                                    <Loader2 size={14} className="animate-spin text-amber-500" />
-                                </div>
-                            )}
-                            {file.status === 'error' && (
-                                <div className="absolute top-2 right-2" title={file.errorMessage || 'Analysis failed'}>
-                                    <span className="w-5 h-5 bg-red-500 text-white rounded-full text-xs font-bold flex items-center justify-center">!</span>
-                                </div>
-                            )}
-                            {file.status === 'ready' && (
-                                <div className="absolute top-2 right-2">
-                                    <span className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-                                        <span className="text-white text-[10px]">✓</span>
-                                    </span>
-                                </div>
-                            )}
-
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${file.status === 'error'
-                                ? 'bg-red-100 text-red-500'
-                                : file.status === 'processing'
-                                    ? 'bg-amber-100 text-amber-600'
-                                    : 'bg-gray-50 text-gray-500'
-                                }`}>
-                                <FileText size={24} />
-                            </div>
-                            <span className="text-xs font-bold text-gray-600 line-clamp-2 leading-tight break-all">
-                                {file.title}
-                            </span>
-
-                            {/* Status Text */}
-                            {file.status === 'processing' && (
-                                <span className="text-[10px] text-amber-600 font-medium">Analyzing...</span>
-                            )}
-                            {file.status === 'error' && (
-                                <div className="flex flex-col items-center gap-1">
-                                    <span className="text-[10px] text-red-500 font-medium">Failed</span>
-                                    <button
-                                        onClick={() => handleRetry(file.id)}
-                                        disabled={retryingId === file.id}
-                                        className="flex items-center gap-1 px-2 py-1 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg text-[10px] font-medium transition-colors disabled:opacity-50"
-                                    >
-                                        {retryingId === file.id ? (
-                                            <><Loader2 size={10} className="animate-spin" /> Retrying...</>
-                                        ) : (
-                                            <><RotateCcw size={10} /> Retry</>
-                                        )}
-                                    </button>
-                                </div>
-                            )}
+                {/* LIST VIEW */}
+                {viewMode === 'list' && (
+                    <div className="flex flex-col gap-2">
+                        {/* Headers */}
+                        <div className="grid grid-cols-[auto_1fr_auto] gap-4 px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-200 mb-2">
+                            <span className="w-8">Type</span>
+                            <span>Name</span>
+                            <span>Status</span>
                         </div>
-                    ))}
-                </div>
+
+                        {/* Folders */}
+                        {initialData.folders.map((folder: any) => (
+                            <Link
+                                key={folder.id}
+                                href={`/dashboard/courses/${courseId}?folderId=${folder.id}`}
+                                className="grid grid-cols-[auto_1fr_auto] gap-4 items-center bg-white p-3 rounded-xl border border-gray-100 shadow-sm hover:border-[#4C8233] hover:shadow-md transition-all group cursor-pointer"
+                            >
+                                <div className="w-8 flex justify-center text-blue-500 group-hover:text-[#4C8233]">
+                                    <Folder size={20} fill="currentColor" className="opacity-80" />
+                                </div>
+                                <span className="text-sm font-bold text-gray-700 group-hover:text-black">
+                                    {folder.name}
+                                </span>
+                                <span className="text-xs text-gray-400 font-medium">Folder</span>
+                            </Link>
+                        ))}
+
+                        {/* Files */}
+                        {initialData.resources.map((file: any) => (
+                            <div
+                                key={file.id}
+                                className={`grid grid-cols-[auto_1fr_auto] gap-4 items-center bg-white p-3 rounded-xl border shadow-sm transition-all group ${file.status === 'error'
+                                    ? 'border-red-200 bg-red-50/50'
+                                    : file.status === 'processing'
+                                        ? 'border-amber-200 bg-amber-50/50'
+                                        : 'border-gray-100 hover:border-gray-300'
+                                    }`}
+                            >
+                                <div className={`w-8 flex justify-center ${file.status === 'error' ? 'text-red-500' : file.status === 'processing' ? 'text-amber-600' : 'text-gray-500'}`}>
+                                    {getFileIcon(file.type)}
+                                </div>
+                                <span className="text-sm font-bold text-gray-700 truncate">
+                                    {file.title}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    {file.status === 'processing' && <span className="flex items-center gap-1 text-[10px] text-amber-600 font-bold bg-amber-100 px-2 py-1 rounded-full"><Loader2 size={10} className="animate-spin" /> Analyzing</span>}
+                                    {file.status === 'error' && (
+                                        <div className="flex items-center gap-2">
+                                            <span className="flex items-center gap-1 text-[10px] text-red-600 font-bold bg-red-100 px-2 py-1 rounded-full">Failed</span>
+                                            <button onClick={() => handleRetry(file.id)} className="p-1 hover:bg-red-200 rounded-full text-red-500 transition-colors" title="Retry">
+                                                <RotateCcw size={14} />
+                                            </button>
+                                        </div>
+                                    )}
+                                    {file.status === 'ready' && <span className="flex items-center gap-1 text-[10px] text-green-600 font-bold bg-green-100 px-2 py-1 rounded-full">Ready</span>}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* --- MODALS --- */}
