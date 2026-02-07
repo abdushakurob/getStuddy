@@ -331,6 +331,18 @@ export async function chatWithAgent(message: string, history: any[], contextText
 
     return { type: 'error', content: "Unexpected error." };
 }
+// Helper to fetch transcript
+async function getYouTubeTranscript(url: string) {
+    try {
+        const { YoutubeTranscript } = await import('youtube-transcript');
+        const transcriptItems = await YoutubeTranscript.fetchTranscript(url);
+        return transcriptItems.map(item => item.text).join(' ');
+    } catch (e) {
+        console.error("Failed to fetch transcript:", e);
+        return null;
+    }
+}
+
 // Analyze YouTube Video via LLM (Multimodal)
 export async function analyzeYouTubeVideo(url: string) {
     const promptText = `
@@ -370,7 +382,54 @@ export async function analyzeYouTubeVideo(url: string) {
             { text: promptText }
         ];
 
-        const result = await analysisModel.generateContent(parts as any);
+        let result;
+        try {
+            console.log(`[Gemini] Attempting native video analysis for: ${url}`);
+            result = await analysisModel.generateContent(parts as any);
+        } catch (videoError: any) {
+            // Check for the specific "Bad Request" / "credentials" error
+            if (videoError.toString().includes('400') || videoError.toString().includes('credentials') || videoError.toString().includes('403')) {
+                console.warn("[Gemini] Native video analysis failed (likely unlisted/restricted). Falling back to transcript...");
+
+                const transcript = await getYouTubeTranscript(url);
+                if (!transcript) {
+                    throw new Error("Video analysis failed and transcript could not be fetched.");
+                }
+
+                console.log("[Gemini] Transcript fetched. Analyzing as text...");
+                // Analyze as text instead
+                const transcriptPrompt = `
+                You are Studdy. I have provided a transcript of a video.
+                Analyze this transcript thoroughly as if it were the video itself.
+                
+                TRANSCRIPT:
+                ${transcript.substring(0, 50000)} // Safety limit
+
+                GOAL: Create a structured learning guide.
+                
+                CRITICAL: 
+                - Output PURE JSON.
+                - difficulty MUST be exactly: "beginner", "intermediate", or "advanced".
+
+                OUTPUT JSON FORMAT:
+                {
+                    "document_type": "video_lecture",
+                    "summary": "Brief summary...",
+                    "distilled_content": "Detailed notes...",
+                    "learning_map": [
+                        { "label": "Topic 1", "page": "0:00", "difficulty": "beginner" }
+                    ],
+                    "total_concepts": 5
+                }
+                `;
+
+                result = await analysisModel.generateContent(transcriptPrompt);
+
+            } else {
+                throw videoError; // Re-throw other errors
+            }
+        }
+
         const response = result.response;
         const text = response.text();
 
