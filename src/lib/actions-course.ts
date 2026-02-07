@@ -366,7 +366,7 @@ async function createVideoResource(courseId: string, folderId: string | null, ur
     const knowledgeBase = undefined;
     const learningMap: any[] = [];
     const totalConcepts = 0;
-    const documentType = 'video';
+    const documentType = 'video_lecture';
 
     // 1. Create Resource Immediately (Processing State)
     const resource = await Resource.create({
