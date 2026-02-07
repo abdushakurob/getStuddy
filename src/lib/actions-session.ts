@@ -190,9 +190,11 @@ export async function getSession(sessionId: string) {
         // Return list of ALL available resources for switching
         availableResources: allAvailableResources?.map((r: any) => ({
             id: r._id.toString(),
+            _id: r._id.toString(), // Ensure _id is also present for some logic
             title: r.title,
             type: r.type,
-            fileUrl: r.fileUrl
+            url: r.fileUrl, // Map fileUrl to url
+            fileUrl: r.fileUrl // Keep fileUrl just in case
         })) || [],
 
         highlights: sess.highlights?.map((h: any) => ({

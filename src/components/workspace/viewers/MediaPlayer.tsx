@@ -125,7 +125,14 @@ export default function MediaPlayer({ url, type }: MediaPlayerProps) {
                     progressInterval={100} // Smooth updates
                     config={{
                         youtube: {
-                            playerVars: { showinfo: 0, controls: 0, modestbranding: 1, rel: 0 }
+                            playerVars: {
+                                showinfo: 0,
+                                controls: 0,
+                                modestbranding: 1,
+                                rel: 0,
+                                autoplay: 1, // Require for seeking to work reliably on some clients
+                                allowSeekAhead: 1
+                            }
                         }
                     }}
                 />

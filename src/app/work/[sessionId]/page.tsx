@@ -72,6 +72,8 @@ export default async function WorkspacePage({ params }: { params: Promise<{ sess
                             {/* Initialize resource from session */}
                             {workSession.activeResource && (
                                 <ResourceInitializer
+                                    resourceId={(workSession.activeResource as any)._id?.toString() || workSession.activeResource.id}
+                                    resourceTitle={workSession.activeResource.title}
                                     fileUrl={workSession.activeResource.fileUrl}
                                     fileType={workSession.activeResource.type}
                                     initialHighlights={workSession.highlights || []}

@@ -94,7 +94,6 @@ export function ResourceProvider({ children }: { children: React.ReactNode }) {
     const mediaRef = useRef<MediaHandlers | null>(null);
     const docRef = useRef<DocumentHandlers | null>(null);
     const pendingResumeSeek = useRef<number | null>(null);
-    const pendingResumeSeek = useRef<number | null>(null);
 
     // --- Actions ---
 

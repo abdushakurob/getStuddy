@@ -166,6 +166,13 @@ export async function initializeCompanion(context: CompanionContext) {
     
     AVAILABLE RESOURCES (Use resource_id to switch):
     ${context.availableResourcesList || "Only current resource available."}
+    (IMPORTANT: You must use the EXACT 24-character ID string provided above. Do not use generic names or short numbers like '1' or '39')
+
+    NAVIGATION RULES:
+    - To jump to a specific timestamp in a video/audio, use 'navigate_resource' with 'timestamp' (e.g. "1:30") and the EXACT 'resource_id'.
+    - To jump to a specific page in a PDF, use 'navigate_resource' with 'page' (e.g. 10) and the EXACT 'resource_id'.
+    - ALWAYS use 'navigate_resource' when you mention a specific location.
+
 
     ROADMAP (Your GPS):
     ${milestonesText}
@@ -233,6 +240,7 @@ export async function initializeCompanion(context: CompanionContext) {
     - **TONE**: Collaborative, encouraging, "We". "Let's figure this out," "Look what I found in the transcript..."
     - **navigation**: Use \`navigate_resource\` to physically bringing the user to the reference point. Don't just talk about it, SHOW IT.
     - **NO SILENT TOOLS**: You must ALWAYS provide a message explaining your action. Never call a tool without text.
+    - **CODE EXECUTION**: Use \`run_code\` to demonstrate Python concepts. The user can see the output!
 
     ALREADY COVERED:
     ${context.conceptsCovered?.map(c => `• ${c.concept} (${c.level})`).join('\n') || 'Starting fresh'}
@@ -241,6 +249,17 @@ export async function initializeCompanion(context: CompanionContext) {
     // Add new tools to the toolset
     const agentTools = [
         ...tools.filter(t => t.name !== 'navigate_resource'), // Remove old to replace
+        {
+            name: "run_code",
+            description: "Executes Python code and returns the output to the user. Use this to demonstrate concepts live.",
+            parameters: {
+                type: SchemaType.OBJECT,
+                properties: {
+                    code: { type: SchemaType.STRING, description: "The Python code to execute" }
+                },
+                required: ["code"]
+            }
+        },
         {
             name: "navigate_resource",
             description: "Navigates the user's view to a specific page or location in a resource. Use this to grounding explanations.",
@@ -342,18 +361,72 @@ export async function sendCompanionMessage(
     message: string,
     history: any[]
 ) {
-    const chat = model.startChat({ history });
-    const result = await chat.sendMessage(message);
-    const response = result.response;
+    try {
+        const chat = model.startChat({ history });
+        const result = await chat.sendMessage(message);
+        const response = result.response;
 
-    // Extract tool calls
-    const functionCalls = response.functionCalls();
+        // Check for safety blocking
+        if (response.promptFeedback?.blockReason) {
+            console.warn("Blocked:", response.promptFeedback.blockReason);
+            return {
+                text: "I'm sorry, I can't generate that response safely.",
+                toolCalls: [],
+                raw: response
+            };
+        }
 
-    return {
-        text: response.text(),
-        toolCalls: functionCalls || [],
-        raw: response
-    };
+        let text = "";
+        try {
+            text = response.text();
+        } catch (e) {
+            console.error("Error getting text (likely blocked):", e);
+            text = "I couldn't generate a text response.";
+        }
+
+        // Extract tool calls
+        let functionCalls = [];
+        try {
+            functionCalls = response.functionCalls();
+        } catch (e) {
+            // functionCalls() might throw if no function call exists or if malformed
+            // but usually it just returns undefined if none.
+            // If malformed, we ignore tools.
+            console.log("No tool calls or error parsing them:", e);
+        }
+
+        return {
+            text: text,
+            toolCalls: functionCalls || [],
+            raw: response
+        };
+    } catch (error: any) {
+        console.error("Gemini API Error:", error);
+        throw new Error(`AI Service Error: ${error.message}`);
+    }
+}
+
+// Simulate code execution using LLM
+export async function simulateCodeExecution(code: string) {
+    try {
+        const model = genAI.getGenerativeModel({ model: AI_MODEL });
+        const prompt = `
+You are a Python Interpreter.
+Act as if you executed the following Python code.
+Return ONLY the output that would be printed to the console.
+If there are no print statements, return the result of the last expression.
+If there is an error, return the error message.
+DO NOT wrap the output in markdown code blocks. Just the raw text.
+
+CODE:
+${code}
+`;
+        const result = await model.generateContent(prompt);
+        return result.response.text().trim();
+    } catch (error) {
+        console.error("Simulation error:", error);
+        return "Error executing code.";
+    }
 }
 
 // Legacy exports for backward compatibility

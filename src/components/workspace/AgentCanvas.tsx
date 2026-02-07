@@ -12,6 +12,7 @@ import {
     CheckCircle2,
     Loader2,
     PlayCircle,
+    Play,
     FileText,
     MessageSquare,
     Map as MapIcon, // Rename to avoid conflict with global Map
@@ -259,9 +260,9 @@ export default function AgentCanvas({
             }
 
             setCompanionStatus(response.progress?.isComplete ? "Great session!" : "I'm here if you need me");
-        } catch (error) {
+        } catch (error: any) {
             console.error('Action error:', error);
-            setCompanionStatus("Something went wrong");
+            setCompanionStatus(`Error: ${error.message || "Something went wrong"}`);
         } finally {
             setLoading(false);
         }
@@ -335,12 +336,15 @@ export default function AgentCanvas({
             );
         }
 
-        // Create a map of timestamp -> resourceId from tool results
+        // Create maps for clickable links
         const timestampMap = new Map<string, string>();
+        const pageMap = new Map<string, string>();
+
         if (item.toolResults) {
             item.toolResults.forEach((t: any) => {
-                if (t.type === 'navigation' && t.timestamp && t.resourceId) {
-                    timestampMap.set(t.timestamp, t.resourceId);
+                if (t.type === 'navigation' && t.resourceId) {
+                    if (t.timestamp) timestampMap.set(t.timestamp, t.resourceId);
+                    if (t.page) pageMap.set(t.page.toString(), t.resourceId);
                 }
             });
         }
@@ -364,10 +368,43 @@ export default function AgentCanvas({
                                     components={{
                                         a: ({ node, href, children, ...props }) => {
                                             if (href?.startsWith('action:navigate:')) {
-                                                const pageLabel = href.split(':')[2];
+                                                const parts = href.split(':'); // action:navigate:PAGE:ID
+                                                const pageLabel = parts[2];
+                                                const linkedResourceId = parts[3];
+
                                                 return (
                                                     <button
-                                                        onClick={() => jumpToLabel(pageLabel)}
+                                                        onClick={async () => {
+                                                            let targetRes = null;
+
+                                                            // Find target resource logic (shared with timestamp)
+                                                            if (linkedResourceId) {
+                                                                targetRes = availableResources.find(r => r._id === linkedResourceId || r._id?.toString() === linkedResourceId);
+                                                            }
+                                                            if (!targetRes && fallbackResourceId) {
+                                                                targetRes = availableResources.find(r => r._id === fallbackResourceId || r._id?.toString() === fallbackResourceId);
+                                                            }
+                                                            // 3. Last Resort: Find ANY PDF if we are not on one
+                                                            if (!targetRes && currentResource?.type !== 'pdf') {
+                                                                // Context-aware fallback: Check if any PDF title is mentioned in the message
+                                                                targetRes = availableResources.find(r => r.type === 'pdf' && item.content?.includes(r.title));
+
+                                                                // If no title match, just pick the first PDF (or last active?)
+                                                                if (!targetRes) {
+                                                                    targetRes = availableResources.find(r => r.type === 'pdf');
+                                                                }
+                                                            }
+
+                                                            // Switch if needed
+                                                            if (targetRes && targetRes._id !== currentResource?.id) {
+                                                                console.log("Switching to PDF:", targetRes.title);
+                                                                // FIX: switchResource expects ID string, not object!
+                                                                switchResource(targetRes._id?.toString() || targetRes.id);
+                                                                await new Promise(r => setTimeout(r, 1000));
+                                                            }
+
+                                                            jumpToLabel(pageLabel);
+                                                        }}
                                                         className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors mx-1 font-bold text-xs border border-blue-200 align-middle transform -translate-y-px"
                                                     >
                                                         <BookOpen size={10} />
@@ -376,9 +413,51 @@ export default function AgentCanvas({
                                                 );
                                             }
                                             if (href?.startsWith('action:timestamp:')) {
-                                                const parts = href.split(':');
-                                                const ts = parts[2];
-                                                const linkedResourceId = parts[3]; // Optional resource ID embedded in URL
+                                                const raw = href.replace('action:timestamp:', '');
+                                                let ts = raw;
+                                                let linkedResourceId = undefined;
+
+                                                // Check if last part is a MongoDB ID (24 hex chars)
+                                                // Or if it matches our "fake ID" pattern if we can't fix Agent yet
+                                                // But robust parsing: splity by last colon?
+                                                const parts = raw.split(':');
+
+                                                // Heuristic: valid timestamp has 1 or 2 colons.
+                                                // valid ID has 0 colons.
+                                                // If we have > 2 parts, maybe last one is ID?
+                                                // If parts are ["0", "33", "ID"] -> 3 parts.
+                                                // If parts are ["0", "33"] -> 2 parts.
+
+                                                // Better approach: Regex match the timestamp at start.
+                                                // ^(\d{1,2}:)?\d{1,2}:\d{2}
+                                                const tsMatch = raw.match(/^(\d{1,2}:)?\d{1,2}:\d{2}/);
+                                                if (tsMatch) {
+                                                    ts = tsMatch[0];
+                                                    const remainder = raw.substring(ts.length);
+                                                    if (remainder.trim().startsWith(':')) {
+                                                        const suffix = remainder.trim().substring(1);
+                                                        // Fix for "0:33:69" where 69 is hallucinated index
+                                                        if (suffix.length > 20) {
+                                                            linkedResourceId = suffix;
+                                                        } else {
+                                                            console.log("Ignoring short suffix/hallucination:", suffix);
+                                                        }
+                                                    }
+                                                } else {
+                                                    // Fallback for simple seconds?
+                                                    // If raw is "5:ID", last part might be ID
+                                                    if (raw.includes(':')) {
+                                                        const parts = raw.split(':');
+                                                        const lastPart = parts[parts.length - 1];
+
+                                                        if (lastPart.length > 20) { // ObjectId len is 24
+                                                            linkedResourceId = lastPart;
+                                                            ts = parts.slice(0, parts.length - 1).join(':');
+                                                        } else {
+                                                            ts = raw;
+                                                        }
+                                                    }
+                                                }
 
                                                 return (
                                                     <button
@@ -388,6 +467,8 @@ export default function AgentCanvas({
                                                             if (timeParts.length === 3) seconds = timeParts[0] * 3600 + timeParts[1] * 60 + timeParts[2];
                                                             else if (timeParts.length === 2) seconds = timeParts[0] * 60 + timeParts[1];
                                                             else seconds = timeParts[0];
+
+                                                            console.log("Timestamp Click:", { ts, timeParts, seconds, linkedResourceId, currentResourceId: currentResource?._id });
 
                                                             // Determine target resource
                                                             let targetRes = null;
@@ -406,6 +487,8 @@ export default function AgentCanvas({
                                                             if (!targetRes && currentResource?.type !== 'video' && currentResource?.type !== 'audio') {
                                                                 targetRes = availableResources.find(r => r.type === 'video') || availableResources.find(r => r.type === 'audio');
                                                             }
+
+                                                            console.log("Target Resource:", targetRes?.title, "Current:", currentResource?.title);
 
                                                             // Switch if needed
                                                             if (targetRes && targetRes._id !== currentResource?._id) {
@@ -427,14 +510,52 @@ export default function AgentCanvas({
                                                 );
                                             }
                                             return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
+                                        },
+                                        code: ({ node, className, children, ...props }) => {
+                                            const match = /language-(\w+)/.exec(className || '');
+                                            return match ? (
+                                                <div className="rounded-lg bg-gray-900 border border-gray-800 shadow-sm my-4 overflow-hidden w-full">
+                                                    <div className="bg-gray-800/50 px-4 py-2 flex items-center justify-between border-b border-gray-800">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="flex gap-1.5">
+                                                                <div className="w-2.5 h-2.5 rounded-full bg-[#FF5F56]" />
+                                                                <div className="w-2.5 h-2.5 rounded-full bg-[#FFBD2E]" />
+                                                                <div className="w-2.5 h-2.5 rounded-full bg-[#27C93F]" />
+                                                            </div>
+                                                            <div className="text-xs text-gray-500 font-mono uppercase tracking-wider font-semibold">
+                                                                {match[1]}
+                                                            </div>
+                                                        </div>
+                                                        <Play size={12} className="text-gray-600" />
+                                                    </div>
+                                                    <div className="p-4 overflow-x-auto text-sm font-mono leading-relaxed text-gray-300">
+                                                        <code className={className} {...props}>
+                                                            {children}
+                                                        </code>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <code className="bg-gray-100 px-1.5 py-0.5 rounded text-sm font-mono text-gray-800" {...props}>
+                                                    {children}
+                                                </code>
+                                            );
                                         }
                                     }}
                                 >
-                                    {/* Linkify Timestamps (0:00 or 00:00). Match with Map for resource ID */}
-                                    {item.content?.replace(/\b(\d{1,2}:)?\d{1,2}:\d{2}\b/g, (match) => {
-                                        const embeddedId = timestampMap.get(match);
-                                        return `[${match}](action:timestamp:${match}${embeddedId ? ':' + embeddedId : ''})`;
-                                    })}
+                                    {/* Linkify Timestamps (0:00, 00:00, or 1:30). Match with Map for resource ID */}
+                                    {item.content
+                                        ?.replace(/\b(\d{1,2}:)?\d{1,2}:\d{2}\b/g, (match) => {
+                                            const embeddedId = timestampMap.get(match);
+                                            return `[${match}](action:timestamp:${match}${embeddedId ? ':' + embeddedId : ''})`;
+                                        })
+                                        ?.replace(/\b(page|p\.|pg)\.?\s*(\d{1,5})\b/gi, (match, prefix, pageNum) => {
+                                            const embeddedId = pageMap.get(pageNum);
+                                            // Only linkify if we have a map entry OR if it looks like a valid page reference in context
+                                            // But for now, let's linkify all "Page X" if we can, defaulting to current doc if no ID?
+                                            // Actually, if no ID in map, our handler tries fallbackResourceId.
+                                            return `[${match}](action:navigate:${pageNum}${embeddedId ? ':' + embeddedId : ''})`;
+                                        })
+                                    }
                                 </ReactMarkdown>
                             </div>
                         </div>
@@ -471,6 +592,33 @@ export default function AgentCanvas({
                         );
                     }
                     // Also show milestone updates if they happen WITH text
+                    if (result?.type === 'code_execution') {
+                        return (
+                            <div key={idx} className="mt-4 w-full rounded-lg overflow-hidden border border-gray-200 shadow-sm ml-11 max-w-[90%]">
+                                <div className="bg-gray-900 px-4 py-2 flex items-center gap-2">
+                                    <div className="flex gap-1.5">
+                                        <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                                        <div className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
+                                        <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                                    </div>
+                                    <div className="text-xs text-gray-400 font-mono ml-2 flex items-center gap-1">
+                                        <span className="text-gray-500">python</span>
+                                        <span>main.py</span>
+                                    </div>
+                                </div>
+                                <div className="bg-[#1e1e1e] p-4 text-sm font-mono leading-relaxed">
+                                    <div className="text-purple-300 mb-2 border-b border-gray-800 pb-2">
+                                        <span className="text-gray-500 mr-2">1</span>
+                                        {result.code}
+                                    </div>
+                                    <div className="text-green-400 mt-2">
+                                        <span className="text-gray-500 select-none mr-2">{'>'}</span>
+                                        {result.output || <span className="text-gray-600 italic">No output</span>}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    }
                     if (result?.type === 'milestone_update') {
                         return (
                             <div key={idx} className="flex items-center gap-2 text-xs text-gray-500 font-medium bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100 shadow-sm w-fit ml-11">

@@ -7,7 +7,7 @@ import { initializeCompanion, sendCompanionMessage } from './director-agent';
 import { revalidatePath } from 'next/cache';
 
 // Handle tool calls from Companion Agent
-function handleToolCall(toolCall: any, sessionId: string) {
+async function handleToolCall(toolCall: any, sessionId: string) {
     const { name, args } = toolCall;
 
     switch (name) {
@@ -100,6 +100,17 @@ function handleToolCall(toolCall: any, sessionId: string) {
                 context: args.context
             };
 
+        case 'run_code':
+            // Logic to run code (simulated)
+            const { simulateCodeExecution } = await import('./director-agent');
+            const output = await simulateCodeExecution(args.code);
+            return {
+                type: 'code_execution',
+                code: args.code,
+                output: output,
+                status: 'completed'
+            };
+
         case 'update_mood':
             return {
                 type: 'mood_update',
@@ -108,6 +119,7 @@ function handleToolCall(toolCall: any, sessionId: string) {
             };
 
         default:
+            console.warn(`Unknown tool called: ${name}`);
             return null;
     }
 }
@@ -159,6 +171,7 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
     const availableResourcesList = resources.map((r: any) =>
         `- ID: ${r._id.toString()} | Title: ${r.title} | Type: ${r.type}`
     ).join('\n');
+    console.log("DEBUG: availableResourcesList sent to Agent:\n", availableResourcesList);
 
     // Build companion context with structured learning data AND Agentic State
     const context = {
@@ -227,7 +240,10 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
     const response = await sendCompanionMessage(model, userMessage, history);
 
     // Process tool calls
-    const toolResults = response.toolCalls.map((tc: any) => handleToolCall(tc, sessionId)).filter(Boolean);
+    // Map returns promises now because handleToolCall is async
+    const toolResults = await Promise.all(
+        response.toolCalls.map((tc: any) => handleToolCall(tc, sessionId))
+    ).then(results => results.filter(Boolean));
 
     // Extract paths (new suggested actions format)
     const suggestedActions = toolResults
