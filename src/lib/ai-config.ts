@@ -21,6 +21,7 @@ export const genAI = new GoogleGenerativeAI(apiKey || "PENDING_KEY");
 export const AI_MODEL = "gemini-2.5-flash";
 
 // Available models (for reference):
+// gemini-3-flash-preview
 // - gemini-2.5-flash-lite (fast, cheaper)
 // - gemini-2.0-flash (balanced)
 // - gemini-2.0-pro (powerful, slower)

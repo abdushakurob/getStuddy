@@ -3,7 +3,10 @@
 import React, { createContext, useContext, useState, useRef, useCallback } from 'react';
 
 // Resource type
-type Resource = {
+// Resource type
+export type Resource = {
+    id: string;
+    title: string;
     url: string;
     type: string;
 };
@@ -50,6 +53,11 @@ interface ResourceControl {
     zoomLevel: number;
     setZoom: (level: number) => void;
 
+    // Multi-Resource Switching
+    availableResources: Resource[];
+    setAvailableResources: (resources: Resource[]) => void;
+    switchResource: (resourceId: string) => void;
+
     // Registration (Viewers call this to register their internal handlers)
     registerMediaHandler: (handlers: MediaHandlers) => void;
     registerDocumentHandler: (handlers: DocumentHandlers) => void;
@@ -72,6 +80,7 @@ const ResourceContext = createContext<ResourceControl | null>(null);
 export function ResourceProvider({ children }: { children: React.ReactNode }) {
     // State
     const [currentResource, setCurrentResource] = useState<Resource | null>(null);
+    const [availableResources, setAvailableResources] = useState<Resource[]>([]);
     const [highlights, setHighlights] = useState<Highlight[]>([]);
 
     const [mediaState, setMediaState] = useState<'playing' | 'paused' | 'buffering' | 'idle'>('idle');
@@ -84,6 +93,8 @@ export function ResourceProvider({ children }: { children: React.ReactNode }) {
     // Refs to actual implementations (The TV screen)
     const mediaRef = useRef<MediaHandlers | null>(null);
     const docRef = useRef<DocumentHandlers | null>(null);
+    const pendingResumeSeek = useRef<number | null>(null);
+    const pendingResumeSeek = useRef<number | null>(null);
 
     // --- Actions ---
 
@@ -99,6 +110,9 @@ export function ResourceProvider({ children }: { children: React.ReactNode }) {
         if (mediaRef.current) {
             mediaRef.current.seek(time);
             setCurrentTime(time);
+        } else {
+            console.warn("ResourceContext: Media handler not registered, queuing seek to", time);
+            pendingResumeSeek.current = time;
         }
     }, []);
 
@@ -143,9 +157,28 @@ export function ResourceProvider({ children }: { children: React.ReactNode }) {
         }
     }, []);
 
+    const switchResource = useCallback((resourceId: string) => {
+        const target = availableResources.find(r => r.id === resourceId);
+        if (target) {
+            setCurrentResource(target);
+            // Reset state for new resource
+            setCurrentPage(1);
+            setCurrentTime(0);
+        } else {
+            console.warn(`Resource ${resourceId} not found in available list.`);
+        }
+    }, [availableResources]);
+
     const registerMediaHandler = useCallback((handlers: MediaHandlers) => {
         mediaRef.current = handlers;
-    }, []);
+        // Check if there was a pending seek that failed due to null ref
+        if (pendingResumeSeek.current !== null) {
+            console.log("ResourceContext: Retrying pending seek to", pendingResumeSeek.current);
+            const t = pendingResumeSeek.current;
+            handlers.seek(t);
+            pendingResumeSeek.current = null;
+        }
+    }, [pendingResumeSeek]);
 
     const registerDocumentHandler = useCallback((handlers: DocumentHandlers) => {
         docRef.current = handlers;
@@ -156,6 +189,7 @@ export function ResourceProvider({ children }: { children: React.ReactNode }) {
         <ResourceContext.Provider value={{
             currentResource, setCurrentResource,
             highlights, setHighlights, addHighlight, removeHighlight,
+            availableResources, setAvailableResources, switchResource,
             seekTo, play, pause, mediaState, currentTime, duration,
             jumpToPage, jumpToLabel, nextPage, prevPage, currentPage, totalPages, setTotalPages, zoomLevel, setZoom,
             registerMediaHandler, registerDocumentHandler

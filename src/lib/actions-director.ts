@@ -15,8 +15,9 @@ function handleToolCall(toolCall: any, sessionId: string) {
             return {
                 type: 'navigation',
                 page: args.page,
-                timestamp: args.timestamp,
-                context: args.context
+                resourceId: args.resource_id, // Pass resource ID if present
+                timestamp: args.timestamp, // Or use page for timestamp if unified
+                context: args.context || args.concept
             };
 
         case 'explain_concept':
@@ -111,7 +112,7 @@ function handleToolCall(toolCall: any, sessionId: string) {
     }
 }
 
-export async function sendMessageToDirector(sessionId: string, userMessage: string, messageRole: 'user' | 'system' = 'user') {
+export async function sendMessageToDirector(sessionId: string, userMessage: string, messageRole: 'user' | 'system' = 'user', currentResourceId?: string) {
     const session = await auth();
     if (!session?.user?.id) throw new Error('Unauthorized');
 
@@ -135,8 +136,14 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
         status: 'ready'
     }).select('title type fileUrl knowledgeBase summary learningMap suggestedOrder totalConcepts').lean();
 
-    // Find primary resource
-    const primaryResource = resources.find((r: any) => r.type === 'pdf') || resources[0];
+    // Find primary resource: Prioritize currentResourceId, then PDF, then first available
+    let primaryResource;
+    if (currentResourceId) {
+        primaryResource = resources.find((r: any) => r._id.toString() === currentResourceId);
+    }
+    if (!primaryResource) {
+        primaryResource = resources.find((r: any) => r.type === 'pdf') || resources[0];
+    }
 
     // Merge learning maps from all resources
     const combinedLearningMap = resources.flatMap((r: any) => r.learningMap || []);
@@ -147,6 +154,11 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
     const knowledgeBase = resources.map((r: any) =>
         `=== ${r.title} (${r.type}) ===\n${r.knowledgeBase?.substring(0, 12000) || r.summary || ''}`
     ).join('\n\n');
+
+    // List of resources for Agent to see
+    const availableResourcesList = resources.map((r: any) =>
+        `- ID: ${r._id.toString()} | Title: ${r.title} | Type: ${r.type}`
+    ).join('\n');
 
     // Build companion context with structured learning data AND Agentic State
     const context = {
@@ -178,16 +190,34 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
         // Recent conversation for context
         previousExchanges: studySession.transcript.slice(-6).map((t: any) =>
             `${t.role}: ${t.content?.substring(0, 200)}`
-        )
+        ),
+
+        // Multi-Resource Awareness
+        availableResourcesList
     };
 
     const model = await initializeCompanion(context);
 
     // Build chat history for Gemini
-    const rawHistory = studySession.transcript.slice(0, -1).map((t: any) => ({
-        role: t.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: t.content }]
-    }));
+    const rawHistory = studySession.transcript.slice(0, -1).map((t: any) => {
+        let textContent = t.content || '';
+
+        // Inject tool calls into history so Agent knows what it did
+        if (t.toolCalls && t.toolCalls.length > 0) {
+            const toolSummary = t.toolCalls.map((tc: any) => `[Action: ${tc.tool}]`).join(' ');
+            textContent = textContent ? `${textContent}\n${toolSummary}` : toolSummary;
+        }
+
+        // Ensure non-empty text for API
+        if (!textContent || textContent.trim() === '') {
+            textContent = '[User Action]'; // Fallback
+        }
+
+        return {
+            role: t.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: textContent }]
+        };
+    });
 
     // Gemini requires first message to be from 'user'
     const firstUserIndex = rawHistory.findIndex((m: any) => m.role === 'user');

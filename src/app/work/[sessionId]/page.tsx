@@ -75,6 +75,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ sess
                                     fileUrl={workSession.activeResource.fileUrl}
                                     fileType={workSession.activeResource.type}
                                     initialHighlights={workSession.highlights || []}
+                                    availableResources={workSession.availableResources || []}
                                 />
                             )}
                             <ResourceViewer />

@@ -329,3 +329,131 @@ export async function chatWithAgent(message: string, history: any[], contextText
 
     return { type: 'error', content: "Unexpected error." };
 }
+// Analyze YouTube Video via LLM (Multimodal)
+export async function analyzeYouTubeVideo(url: string) {
+    const promptText = `
+    You are Studdy. I have provided a YouTube video as context.
+    Analyze the video content thoroughly.
+    
+    GOAL: Create a structured learning guide.
+    
+    CRITICAL: 
+    - Output PURE JSON. No markdown formatting.
+    - Escape ALL double quotes inside strings (e.g. \"content\").
+    - Escape newlines as \\n.
+    - difficulty MUST be exactly: "beginner", "intermediate", or "advanced".
+    
+    OUTPUT JSON FORMAT:
+    {
+        "document_type": "video_lecture",
+        "summary": "Brief summary of the video content...",
+        "distilled_content": "Detailed markdown notes of the key concepts...",
+        "learning_map": [
+            { "label": "Topic 1", "page": "0:00", "difficulty": "beginner" },
+            { "label": "Topic 2", "page": "5:00", "difficulty": "intermediate" }
+        ],
+        "total_concepts": 5
+    }
+    `;
+
+    try {
+        // Gemini 2.5+ supports YouTube URLs directly in fileData
+        const parts = [
+            {
+                fileData: {
+                    fileUri: url,
+                    mimeType: "video/mp4"
+                }
+            },
+            { text: promptText }
+        ];
+
+        const result = await analysisModel.generateContent(parts as any);
+        const response = result.response;
+        const text = response.text();
+
+        // Robust JSON Extraction
+        let jsonString = text.trim();
+        if (!jsonString.startsWith('{')) {
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) jsonString = jsonMatch[0];
+        }
+        jsonString = jsonString.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+
+        let parsedData: any = null;
+
+        try {
+            parsedData = JSON.parse(jsonString);
+        } catch (e) {
+            // Repair: Replace control characters (newlines, tabs, etc.) that are literal
+            const repaired = jsonString
+                .replace(/[\n\r]/g, '\\n')  // Force newlines to be \n
+                .replace(/\t/g, '\\t');     // Force tabs to be \t
+
+            // Repair: Use a state machine for complex escaping
+            let robustRepaired = '';
+            let insideString = false;
+            let isEscaped = false;
+
+            for (let i = 0; i < jsonString.length; i++) {
+                const char = jsonString[i];
+                if (char === '"' && !isEscaped) insideString = !insideString;
+                if (char === '\\' && !isEscaped) isEscaped = true;
+                else isEscaped = false;
+
+                if (insideString) {
+                    if (char === '\n') robustRepaired += '\\n';
+                    else if (char === '\r') robustRepaired += '\\r';
+                    else if (char === '\t') robustRepaired += '\\t';
+                    else robustRepaired += char;
+                } else {
+                    robustRepaired += char;
+                }
+            }
+
+            try {
+                parsedData = JSON.parse(robustRepaired);
+            } catch (e2) {
+                console.error("Gemini JSON Repair Failed:", (e2 as any).message);
+
+                // FINAL RESCUE: Regex Extraction
+                const summaryMatch = text.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+                const distilledMatch = text.match(/"distilled_content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+
+                if (summaryMatch && distilledMatch) {
+                    console.log("[Gemini] Rescued partial data via Regex!");
+                    parsedData = {
+                        document_type: "video_lecture",
+                        summary: summaryMatch[1],
+                        distilled_content: distilledMatch[1],
+                        learning_map: [],
+                        suggested_order: [],
+                        total_concepts: 0
+                    };
+                } else {
+                    throw new Error("Failed to parse Gemini JSON response");
+                }
+            }
+        }
+
+        // SANITIZATION: Fix Enum Violations (difficulty)
+        if (parsedData && parsedData.learning_map) {
+            parsedData.learning_map.forEach((item: any) => {
+                const validDiffs = ['beginner', 'intermediate', 'advanced'];
+                if (!item.difficulty || !validDiffs.includes(item.difficulty)) {
+                    // Map common hallucinations or default
+                    if (item.difficulty === 'low') item.difficulty = 'beginner';
+                    else if (item.difficulty === 'medium') item.difficulty = 'intermediate';
+                    else if (item.difficulty === 'high') item.difficulty = 'advanced';
+                    else item.difficulty = 'beginner';
+                }
+            });
+        }
+
+        return parsedData;
+
+    } catch (e) {
+        console.error("Gemini YouTube Analysis System Error:", e);
+        throw e;
+    }
+}

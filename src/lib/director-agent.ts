@@ -20,38 +20,16 @@ const tools = [
                 context: {
                     type: "string",
                     description: "What you want them to look at (e.g., 'the diagram showing variable scope')"
+                },
+                resource_id: {
+                    type: "string",
+                    description: "Optional: ID of the resource to switch to. Only use if navigating to a DIFFERENT resource."
                 }
             },
             required: ["context"]
         }
     },
-    {
-        name: "explain_concept",
-        description: "Give a focused explanation of a concept. Use conversational language as if talking to a friend.",
-        parameters: {
-            type: "object",
-            properties: {
-                concept: { type: "string", description: "What concept you're explaining" },
-                explanation: { type: "string", description: "Clear, friendly explanation" },
-                analogy: { type: "string", description: "Optional real-world analogy to make it click" },
-                example: { type: "string", description: "Optional practical example" }
-            },
-            required: ["concept", "explanation"]
-        }
-    },
-    {
-        name: "check_understanding",
-        description: "Naturally check if the student understands. NOT a formal quiz - more like 'Quick question - what do you think would happen if...?'",
-        parameters: {
-            type: "object",
-            properties: {
-                question: { type: "string", description: "A natural, conversational question" },
-                expected_insight: { type: "string", description: "What understanding you're checking for" },
-                hint_if_stuck: { type: "string", description: "Gentle hint to offer if they struggle" }
-            },
-            required: ["question", "expected_insight"]
-        }
-    },
+    // explain_concept and check_understanding removed - AI should do this naturally in chat.
     {
         name: "offer_paths",
         description: "Offer the student choices for where to go next. Make these feel like natural suggestions, not robot buttons.",
@@ -157,6 +135,10 @@ interface CompanionContext {
     milestones?: Array<{ label: string; status: string; reasoning: string }>;
     parkingLot?: Array<{ topic: string; question: string }>;
     mood?: { userEngagement: string; agentMode: string };
+
+    // Multi-Resource Awareness
+    maxDepth?: number;
+    availableResourcesList?: string; // Formatted list of ID: Title (Type)
 }
 
 export async function initializeCompanion(context: CompanionContext) {
@@ -180,8 +162,11 @@ export async function initializeCompanion(context: CompanionContext) {
     SESSION STATE (THE "ANCHOR")
     ═══════════════════════════════════════════════════════════
     Main Topic: ${context.topicName}
-    Resource: ${context.resourceTitle} (${context.resourceType})
+    Active Resource: ${context.resourceTitle} (${context.resourceType})
     
+    AVAILABLE RESOURCES (Use resource_id to switch):
+    ${context.availableResourcesList || "Only current resource available."}
+
     ROADMAP (Your GPS):
     ${milestonesText}
 
@@ -196,7 +181,7 @@ export async function initializeCompanion(context: CompanionContext) {
     ═══════════════════════════════════════════════════════════
     KNOWLEDGE BASE (Search this first!)
     ═══════════════════════════════════════════════════════════
-    ${context.knowledgeBase?.substring(0, 20000) || 'No content loaded'}
+    ${context.knowledgeBase?.substring(0, 500000) || 'No content loaded'}
 
     ═══════════════════════════════════════════════════════════
     YOUR CORE BEHAVIOR LOOPS
@@ -204,6 +189,7 @@ export async function initializeCompanion(context: CompanionContext) {
     1. THE ANCHOR LOOP (Staying on Track)
        - Always know which Milestone is active.
        - If the user asks a question RELEVANT to the milestone -> Answer deep.
+       - If the material is in ANOTHER resource -> SWITCH TO IT! Use 'navigate_resource(page, resource_id)'.
        - If the user DRIFTS (asks off-topic) -> CHECK DRIFT:
          * Small drift? Answer briefly (1-2 sentences) then bridge back.
          * Big drift? Use 'park_topic' tool! Say: "Great point! Let's park that for later so we finish [Current Target] first."
@@ -223,7 +209,7 @@ export async function initializeCompanion(context: CompanionContext) {
     ═══════════════════════════════════════════════════════════
     TOOL USAGE RULES
     ═══════════════════════════════════════════════════════════
-    - navigate_resource: REQUIRED. Whenever you discuss a specific page, YOU MUST CALL THIS TOOL. It auto-scrolls the user's screen. Do not just say "Page 5" — take them there!
+    - navigate_resource: REQUIRED. Whenever you discuss a specific page/video, YOU MUST CALL THIS TOOL. It auto-scrolls the user's screen. Do not just say "Page 5" — take them there! It also ensures your timestamps are clickable links to the correct video.
     - explain_concept: For deep dives.
     - check_understanding: For those "Flashcard" moments.
     - offer_paths: Use at the very start or if stuck.
@@ -234,10 +220,19 @@ export async function initializeCompanion(context: CompanionContext) {
     ═══════════════════════════════════════════════════════════
     VOICE & STYLE
     ═══════════════════════════════════════════════════════════
-    - Be concise but warm.
-    - Use "We" ("Let's tackle this").
-    - Use Markdown for bolding key terms.
-    - AVOID "Is there anything else?". You are the leader. Suggest the next step.
+    - **ROLE**: You are a STUDY COMPANION, not a teacher or a search engine. We are learning TOGETHER.
+    - **YOUR SUPERPOWER**: You have read/watched ALL the course material. Your job is to synthesize it for the user to save them time, but NOT replace the material.
+    - **ALWAYS REFERENCE**: Every explanation must point back to a source.
+      * GOOD: "As the lecture mentions (Video 0:33), variables are buckets. This aligns with the diagram in the PDF (Page 5)..."
+      * BAD: "Variables are buckets." (Too generic).
+    - **SYNTHESIZE**: If multiple resources cover a topic, connect them. "The video shows the code, but the PDF (Page 12) explains the theory better. Let's look at the PDF..."
+    - **TEACH FIRST, SHOW SECOND**: Don't say "The material says X". Explain X yourself, then use the resource as proof.
+      * BAD: "The video at 0:33 explains that variables are containers."
+      * GOOD: "Think of a variable as a labeled box where you store data. In the video at 0:33, you'll see the instructor create a box named 'score', and the PDF (Page 2) defines the syntax..."
+    - **IMMEDIATE VALUE**: Don't say "Let's start". START. Don't say "I will explain". EXPLAIN.
+    - **TONE**: Collaborative, encouraging, "We". "Let's figure this out," "Look what I found in the transcript..."
+    - **navigation**: Use \`navigate_resource\` to physically bringing the user to the reference point. Don't just talk about it, SHOW IT.
+    - **NO SILENT TOOLS**: You must ALWAYS provide a message explaining your action. Never call a tool without text.
 
     ALREADY COVERED:
     ${context.conceptsCovered?.map(c => `• ${c.concept} (${c.level})`).join('\n') || 'Starting fresh'}
@@ -245,7 +240,24 @@ export async function initializeCompanion(context: CompanionContext) {
 
     // Add new tools to the toolset
     const agentTools = [
-        ...tools,
+        ...tools.filter(t => t.name !== 'navigate_resource'), // Remove old to replace
+        {
+            name: "navigate_resource",
+            description: "Navigates the user's view to a specific page or location in a resource. Use this to grounding explanations.",
+            parameters: {
+                type: SchemaType.OBJECT,
+                properties: {
+                    page: { type: SchemaType.NUMBER, description: "Page number (For PDF documents only)" },
+                    timestamp: { type: SchemaType.STRING, description: "Timestamp (e.g. '1:30' or '90') for Video/Audio only." },
+                    concept: { type: SchemaType.STRING, description: "The concept being shown (optional context)" },
+                    context: { type: SchemaType.STRING, description: "The concept being shown (optional context)" }, // Alias for concept to match other tools
+                    resource_id: { type: SchemaType.STRING, description: "ID of the resource to switch to. See AVAILABLE RESOURCES list." }
+                },
+                // require one of page or timestamp? schema doesn't support ONE-OF easily.
+                // make none required, or handle in prompting.
+                required: ["context"]
+            }
+        },
         // --- Agentic Tools ---
         {
             name: "update_milestone",
@@ -317,7 +329,7 @@ export async function initializeCompanion(context: CompanionContext) {
         systemInstruction: systemPrompt,
         tools: [{ functionDeclarations: agentTools as any }],
         generationConfig: {
-            temperature: 0.85,
+            temperature: 0.4,
             maxOutputTokens: 2048,
         }
     });

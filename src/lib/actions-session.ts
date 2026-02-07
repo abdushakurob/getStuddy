@@ -132,6 +132,11 @@ export async function getSession(sessionId: string) {
             .lean();
     }
 
+    // Fetch all available resources for the course
+    const allAvailableResources = await Resource.find({ courseId: sess.courseId })
+        .select('_id title type fileUrl')
+        .lean();
+
     return {
         ...sess,
         _id: sess._id.toString(),
@@ -175,13 +180,20 @@ export async function getSession(sessionId: string) {
             estimatedTotal: sess.progress?.estimatedTotal || 5,
             isComplete: sess.progress?.isComplete || false
         },
-        // Attach Resource
         activeResource: resource ? {
             _id: resource._id.toString(),
             title: resource.title,
             type: resource.type,
             fileUrl: resource.fileUrl
         } : null,
+
+        // Return list of ALL available resources for switching
+        availableResources: allAvailableResources?.map((r: any) => ({
+            id: r._id.toString(),
+            title: r.title,
+            type: r.type,
+            fileUrl: r.fileUrl
+        })) || [],
 
         highlights: sess.highlights?.map((h: any) => ({
             _id: h._id?.toString(),

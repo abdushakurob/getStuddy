@@ -1,7 +1,24 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Sparkles, HelpCircle, Loader2, BookOpen, ArrowRight, Map, MessageSquare, CheckCircle2, Clock, StickyNote } from 'lucide-react';
+
+import {
+    Send,
+    Bot,
+    User,
+    Sparkles,
+    BookOpen,
+    ArrowRight,
+    CheckCircle2,
+    Loader2,
+    PlayCircle,
+    FileText,
+    MessageSquare,
+    Map as MapIcon, // Rename to avoid conflict with global Map
+    Stickr,
+    StickyNote, // Corrected from Stickr if that was a typo? No, Stickr isn't in lucide. StickyNote is.
+    Clock
+} from 'lucide-react';
 import { sendMessageToDirector, handleActionIntent } from '@/lib/actions-director';
 import { useResource } from '@/context/ResourceContext';
 import PlanAdjustmentCard from './PlanAdjustmentCard';
@@ -52,7 +69,7 @@ export default function AgentCanvas({
     const scrollRef = useRef<HTMLDivElement>(null);
 
     // Get resource controls for navigation
-    const { jumpToPage, seekTo, jumpToLabel } = useResource();
+    const { jumpToPage, seekTo, jumpToLabel, switchResource, currentResource, availableResources } = useResource();
 
     useEffect(() => {
         if (activeTab === 'chat' && scrollRef.current) {
@@ -96,7 +113,7 @@ export default function AgentCanvas({
         setInput('');
 
         try {
-            const response = await sendMessageToDirector(sessionId, message);
+            const response = await sendMessageToDirector(sessionId, message, 'user', currentResource?._id);
 
             setTranscript(prev => [...prev, {
                 role: 'assistant',
@@ -113,23 +130,42 @@ export default function AgentCanvas({
             // Handle navigation commands from companion
             if (response.navigationCommands && response.navigationCommands.length > 0) {
                 for (const nav of response.navigationCommands) {
+                    // Switch resource if needed (Must find object first)
+                    if (nav.resourceId) {
+                        const targetRes = availableResources.find(r => r._id === nav.resourceId || r._id?.toString() === nav.resourceId);
+                        if (targetRes && targetRes._id !== currentResource?._id) {
+                            switchResource(targetRes);
+                            setNavigationHint(`Switching to ${targetRes.title}...`);
+                            // If switching, give it a moment before seeking (if also seeking)
+                            // Ideally we queue the seek, but for now let's delay
+                            if (nav.timestamp || nav.page) {
+                                await new Promise(r => setTimeout(r, 1000));
+                            }
+                        }
+                    }
+
                     if (nav.page) {
                         // PDF navigation - Try label jump (smart)
                         jumpToLabel(nav.page.toString());
-                        setNavigationHint(`Showing page ${nav.page}: ${nav.context}`);
+                        setNavigationHint(`Showing page ${nav.page}${nav.context ? `: ${nav.context}` : ''}`);
                     } else if (nav.timestamp) {
                         // Video/audio navigation - parse timestamp
-                        const parts = nav.timestamp.split(':').map(Number);
                         let seconds = 0;
-                        if (parts.length === 3) {
-                            seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
-                        } else if (parts.length === 2) {
-                            seconds = parts[0] * 60 + parts[1];
+                        // Handle potential formats: "1:30", "90", "1.5" (min?), "0.43" ??
+                        // If it's a string with ":", parse standard
+                        if (nav.timestamp.toString().includes(':')) {
+                            const parts = nav.timestamp.split(':').map(Number);
+                            if (parts.length === 3) seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+                            else if (parts.length === 2) seconds = parts[0] * 60 + parts[1];
                         } else {
-                            seconds = parts[0];
+                            // If raw number/string
+                            const val = parseFloat(nav.timestamp);
+                            // valid seconds usually
+                            seconds = val;
                         }
+
                         seekTo(seconds);
-                        setNavigationHint(`Jump to ${nav.timestamp}: ${nav.context}`);
+                        setNavigationHint(`Jump to ${nav.timestamp}${nav.context ? `: ${nav.context}` : ''}`);
                     }
                 }
                 // Clear hint after 5 seconds
@@ -192,6 +228,11 @@ export default function AgentCanvas({
             // Handle navigation commands
             if (response.navigationCommands && response.navigationCommands.length > 0) {
                 for (const nav of response.navigationCommands) {
+                    // Switch resource if needed
+                    if (nav.resourceId) {
+                        switchResource(nav.resourceId);
+                    }
+
                     if (nav.page) {
                         jumpToLabel(nav.page.toString());
                         setNavigationHint(`Showing page ${nav.page}: ${nav.context}`);
@@ -265,11 +306,48 @@ export default function AgentCanvas({
                         if (res.type === 'plan_adjustment') {
                             return <PlanAdjustmentCard key={idx} sessionId={sessionId} adjustment={res} />;
                         }
+                        if (res.type === 'navigation') {
+                            return (
+                                <div key={idx} className="flex items-center gap-2 text-xs text-gray-500 font-medium bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100 shadow-sm">
+                                    <BookOpen size={12} className="text-blue-600" />
+                                    <span>Navigating to <strong className="text-blue-800">{res.resourceId ? 'Resource' : (res.page ? `Page ${res.page}` : (res.timestamp ? `${res.timestamp}` : 'Location'))}</strong>...</span>
+                                </div>
+                            );
+                        }
+                        if (res.type === 'paths') {
+                            return (
+                                <div key={idx} className="flex flex-wrap gap-2 mt-2 justify-center w-full">
+                                    {res.paths?.map((action: any, i: number) => (
+                                        <button
+                                            key={i}
+                                            onClick={() => handleAction(action.suggestion, action.suggestion)}
+                                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all bg-[#E3F2DF] text-[#4C8233] hover:bg-[#4C8233] hover:text-white border border-[#4C8233]/20 shadow-sm`}
+                                        >
+                                            {action.suggestion}
+                                        </button>
+                                    ))}
+                                </div>
+                            );
+                        }
                         return null;
                     })}
                 </div>
             );
         }
+
+        // Create a map of timestamp -> resourceId from tool results
+        const timestampMap = new Map<string, string>();
+        if (item.toolResults) {
+            item.toolResults.forEach((t: any) => {
+                if (t.type === 'navigation' && t.timestamp && t.resourceId) {
+                    timestampMap.set(t.timestamp, t.resourceId);
+                }
+            });
+        }
+
+        // Fallback: Check for generic navigation tool if map lookup fails
+        const navTool = item.toolResults?.find((t: any) => t.type === 'navigation');
+        const fallbackResourceId = navTool?.resourceId;
 
         return (
             <div key={index} className="space-y-3">
@@ -297,11 +375,66 @@ export default function AgentCanvas({
                                                     </button>
                                                 );
                                             }
+                                            if (href?.startsWith('action:timestamp:')) {
+                                                const parts = href.split(':');
+                                                const ts = parts[2];
+                                                const linkedResourceId = parts[3]; // Optional resource ID embedded in URL
+
+                                                return (
+                                                    <button
+                                                        onClick={async () => {
+                                                            const timeParts = ts.split(':').map(Number);
+                                                            let seconds = 0;
+                                                            if (timeParts.length === 3) seconds = timeParts[0] * 3600 + timeParts[1] * 60 + timeParts[2];
+                                                            else if (timeParts.length === 2) seconds = timeParts[0] * 60 + timeParts[1];
+                                                            else seconds = timeParts[0];
+
+                                                            // Determine target resource
+                                                            let targetRes = null;
+
+                                                            // 1. Explicit resource from link (Best Match)
+                                                            if (linkedResourceId) {
+                                                                targetRes = availableResources.find(r => r._id === linkedResourceId || r._id?.toString() === linkedResourceId);
+                                                            }
+
+                                                            // 2. Explicit resource from generic "single" tool (Fallback)
+                                                            if (!targetRes && fallbackResourceId) {
+                                                                targetRes = availableResources.find(r => r._id === fallbackResourceId || r._id?.toString() === fallbackResourceId);
+                                                            }
+
+                                                            // 3. Last Resort: Find ANY video if we are not on one
+                                                            if (!targetRes && currentResource?.type !== 'video' && currentResource?.type !== 'audio') {
+                                                                targetRes = availableResources.find(r => r.type === 'video') || availableResources.find(r => r.type === 'audio');
+                                                            }
+
+                                                            // Switch if needed
+                                                            if (targetRes && targetRes._id !== currentResource?._id) {
+                                                                console.log("Switching to resource:", targetRes.title);
+                                                                switchResource(targetRes);
+                                                                await new Promise(r => setTimeout(r, 1500));
+                                                            } else if (!targetRes && currentResource?.type !== 'video' && currentResource?.type !== 'audio') {
+                                                                alert("No video resource found to jump to.");
+                                                                return;
+                                                            }
+
+                                                            seekTo(seconds);
+                                                        }}
+                                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors mx-1 font-bold text-xs border border-blue-200 align-middle transform -translate-y-px"
+                                                    >
+                                                        <Clock size={10} />
+                                                        {children}
+                                                    </button>
+                                                );
+                                            }
                                             return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
                                         }
                                     }}
                                 >
-                                    {item.content}
+                                    {/* Linkify Timestamps (0:00 or 00:00). Match with Map for resource ID */}
+                                    {item.content?.replace(/\b(\d{1,2}:)?\d{1,2}:\d{2}\b/g, (match) => {
+                                        const embeddedId = timestampMap.get(match);
+                                        return `[${match}](action:timestamp:${match}${embeddedId ? ':' + embeddedId : ''})`;
+                                    })}
                                 </ReactMarkdown>
                             </div>
                         </div>
@@ -379,7 +512,7 @@ export default function AgentCanvas({
                         onClick={() => setActiveTab('plan')}
                         className={`pb-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'plan' ? 'text-[#4C8233] border-[#4C8233]' : 'text-gray-400 border-transparent hover:text-gray-600'}`}
                     >
-                        <Map size={16} />
+                        <MapIcon size={16} />
                         Roadmap
                         {milestones.length > 0 && (
                             <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full text-[10px]">
@@ -429,7 +562,7 @@ export default function AgentCanvas({
                         {/* Milestones Section */}
                         <div className="space-y-4">
                             <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-                                <Map size={14} />
+                                <MapIcon size={14} />
                                 Session Roadmap
                             </h4>
 
@@ -441,13 +574,13 @@ export default function AgentCanvas({
                                 <div className="space-y-3">
                                     {milestones.map((m, idx) => (
                                         <div key={idx} className={`p-4 rounded-xl border flex items-start gap-3 transition-all ${m.status === 'active'
-                                                ? 'bg-white border-[#4C8233] shadow-md shadow-[#4C8233]/5 ring-1 ring-[#4C8233]'
-                                                : m.status === 'completed'
-                                                    ? 'bg-gray-50 border-gray-100 opacity-70'
-                                                    : 'bg-white border-gray-100'
+                                            ? 'bg-white border-[#4C8233] shadow-md shadow-[#4C8233]/5 ring-1 ring-[#4C8233]'
+                                            : m.status === 'completed'
+                                                ? 'bg-gray-50 border-gray-100 opacity-70'
+                                                : 'bg-white border-gray-100'
                                             }`}>
                                             <div className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${m.status === 'completed' ? 'bg-[#4C8233] text-white' :
-                                                    m.status === 'active' ? 'bg-[#E3F2DF] text-[#4C8233]' : 'bg-gray-100 text-gray-400'
+                                                m.status === 'active' ? 'bg-[#E3F2DF] text-[#4C8233]' : 'bg-gray-100 text-gray-400'
                                                 }`}>
                                                 {m.status === 'completed' ? <CheckCircle2 size={12} /> :
                                                     m.status === 'active' ? <div className="w-2 h-2 bg-current rounded-full animate-pulse" /> :

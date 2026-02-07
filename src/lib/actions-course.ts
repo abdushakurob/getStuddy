@@ -261,41 +261,153 @@ export async function addYouTubeResource(courseId: string, folderId: string | nu
     const session = await auth();
     if (!session?.user?.id) throw new Error('Unauthorized');
 
-    // Basic YouTube Validation
-    const ytRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+$/;
-    if (!ytRegex.test(url)) throw new Error('Invalid YouTube URL');
-
     await dbConnect();
 
+    // 1. Check for Playlist
+    const playlistMatch = url.match(/[?&]list=([^#\&\?]+)/);
+    if (playlistMatch) {
+        const playlistId = playlistMatch[1];
+        await processPlaylist(courseId, folderId, playlistId, session.user.id);
+        revalidatePath(`/dashboard/courses/${courseId}`);
+        return;
+    }
+
+    // 2. Single Video
+    const videoIdMatch = url.match(/(?:v=|\/)([\w-]{11})(?:\?|&|\/|$)/);
+    if (!videoIdMatch) throw new Error('Invalid YouTube URL');
+
+    // Use the full watch URL for oEmbed
+    const watchUrl = `https://www.youtube.com/watch?v=${videoIdMatch[1]}`;
+    await createVideoResource(courseId, folderId, watchUrl, session.user.id);
+
+    revalidatePath(`/dashboard/courses/${courseId}`);
+}
+
+async function processPlaylist(courseId: string, parentFolderId: string | null, playlistId: string, userId: string) {
+    // 1. Fetch Playlist Page to get Title and Video IDs
+    // This is a lightweight scrape since we don't have API key.
+    // We look for the first 10-15 unique video IDs.
+
+    let playlistTitle = `Playlist ${playlistId}`;
+    let videoIds: string[] = [];
+
+    try {
+        const res = await fetch(`https://www.youtube.com/playlist?list=${playlistId}`, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StuddyBot/1.0)' }
+        });
+        const html = await res.text();
+
+        // Regex for Title
+        const titleMatch = html.match(/<title>(.*?) - YouTube<\/title>/);
+        if (titleMatch) playlistTitle = titleMatch[1];
+
+        // Regex for Video IDs in the playlist (simple pattern matching)
+        // Look for /watch?v=VIDEO_ID
+        const idMatches = html.matchAll(/\/watch\?v=([\w-]{11})/g);
+        const uniqueIds = new Set<string>();
+
+        for (const match of idMatches) {
+            uniqueIds.add(match[1]);
+            if (uniqueIds.size >= 10) break; // Cap at 10 for demo speed
+        }
+        videoIds = Array.from(uniqueIds);
+
+    } catch (e) {
+        console.error("Failed to scrape playlist", e);
+        return; // Abort if we can't read it
+    }
+
+    if (videoIds.length === 0) return;
+
+    // 2. Create Context Folder
+    const newFolder = await Folder.create({
+        userId,
+        courseId,
+        parentId: parentFolderId || null,
+        name: playlistTitle,
+        color: 'red' // YouTube Red
+    });
+
+    // 3. Process Videos in Parallel (batching to be nice)
+    // We'll do chunks of 3 to avoid hitting rate limits or timeouts
+    for (let i = 0; i < videoIds.length; i += 3) {
+        const chunk = videoIds.slice(i, i + 3);
+        await Promise.all(chunk.map(id =>
+            createVideoResource(courseId, newFolder._id.toString(), `https://www.youtube.com/watch?v=${id}`, userId)
+                .catch(err => console.error(`Failed to add video ${id}`, err))
+        ));
+    }
+}
+
+async function createVideoResource(courseId: string, folderId: string | null, url: string, userId: string) {
+    console.log("createVideoResource ARGS:", { courseId, folderId, url, userId });
     // Fetch Metadata via oEmbed
     let title = 'YouTube Video';
     let summary = '';
+
     try {
+        // oEmbed is reliable for single public videos
         const oEmbedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
         const res = await fetch(oEmbedUrl);
         if (res.ok) {
             const data = await res.json();
             title = data.title;
-            // storing thumbnail in summary logic or metadata could be good, for now just title
             summary = `Video by ${data.author_name}`;
+        } else {
+            // Fallback if oEmbed fails (restricted video?)
+            // We'll just keep "YouTube Video" or try to parse from URL
+            title = `Youtube Video (${url.slice(-11)})`;
         }
     } catch (e) {
-        console.error("Failed to fetch YouTube metadata", e);
+        console.error("Failed to fetch YouTube metadata for " + url, e);
     }
 
-    await Resource.create({
-        userId: session.user.id,
+    // 1. Create Resource Immediately (Processing State)
+    const resource = await Resource.create({
+        userId,
         courseId,
         folderId: folderId || null,
         title,
         type: 'video',
         fileUrl: url,
-        status: 'ready', // ready immediately
+        status: 'processing',  // UI shows spinner
         summary,
-        knowledgeBase: `[YouTube Video] ${url} \nTitle: ${title}`, // Placeholder for transcript
+        knowledgeBase,
+        learningMap,
+        totalConcepts,
+        documentType,
         createdAt: new Date(),
         retryCount: 0
     });
 
-    revalidatePath(`/dashboard/courses/${courseId}`);
+    // 2. Trigger Gemini Analysis (Background - Fire and Forget)
+    (async () => {
+        try {
+            // AI Analysis (Gemini)
+            const { analyzeYouTubeVideo } = await import('@/lib/gemini');
+            const analysis = await analyzeYouTubeVideo(url);
+
+            if (analysis) {
+                resource.summary = analysis.summary || resource.summary;
+                resource.knowledgeBase = analysis.distilled_content || resource.knowledgeBase;
+                resource.learningMap = analysis.learning_map || [];
+                resource.totalConcepts = analysis.total_concepts || 0;
+                resource.documentType = analysis.document_type || resource.documentType;
+
+                resource.status = 'ready';
+                resource.errorMessage = undefined;
+            } else {
+                // Should not happen as we throw now, but handled in catch
+                resource.status = 'error';
+                resource.errorMessage = "Analysis returned empty";
+            }
+            await resource.save();
+
+        } catch (e: any) {
+            console.error(`Background Analysis Failed for video ${url}:`, e);
+            resource.status = 'error';
+            resource.errorMessage = e?.message || 'Unknown analysis error';
+            await resource.save();
+        }
+    })();
 }

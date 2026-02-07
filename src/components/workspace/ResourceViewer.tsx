@@ -36,6 +36,14 @@ export default function ResourceViewer() {
 
     const { url, type } = currentResource;
 
+    if (!url) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                <p>Unable to load this resource: Missing URL</p>
+            </div>
+        );
+    }
+
     // Determine which viewer to use
     if (type === 'video') {
         return <MediaPlayer url={url} type="video" />;
