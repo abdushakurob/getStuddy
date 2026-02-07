@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 import {
     Send,
@@ -15,9 +16,8 @@ import {
     Play,
     FileText,
     MessageSquare,
-    Map as MapIcon, // Rename to avoid conflict with global Map
-    Stickr,
-    StickyNote, // Corrected from Stickr if that was a typo? No, Stickr isn't in lucide. StickyNote is.
+    Map as MapIcon,
+    StickyNote,
     Clock
 } from 'lucide-react';
 import { sendMessageToDirector, handleActionIntent } from '@/lib/actions-director';
@@ -25,6 +25,21 @@ import { useResource } from '@/context/ResourceContext';
 import PlanAdjustmentCard from './PlanAdjustmentCard';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+
+interface TranscriptItem {
+    role: 'user' | 'assistant' | 'system';
+    content: string;
+    suggestedActions?: { label: string; intent: string; priority?: 'primary' | 'secondary' }[];
+    toolResults?: any[]; // Keep flexible for now
+    navigationCommands?: any[];
+    progress?: SessionProgress;
+}
+
+interface SessionProgress {
+    conceptsCovered: any[];
+    estimatedTotal: number;
+    isComplete: boolean;
+}
 
 interface Milestone {
     label: string;
@@ -55,9 +70,10 @@ export default function AgentCanvas({
     initialMilestones = [],
     initialParkingLot = []
 }: AgentCanvasProps) {
-    const [transcript, setTranscript] = useState<TranscriptItem[]>(initialTranscript);
-    const [milestones, setMilestones] = useState<Milestone[]>(initialMilestones);
-    const [parkingLot, setParkingLot] = useState<ParkingItem[]>(initialParkingLot);
+    const router = useRouter();
+    const [transcript, setTranscript] = useState<TranscriptItem[]>(initialTranscript || []);
+    const [milestones, setMilestones] = useState<Milestone[]>(initialMilestones || []);
+    const [parkingLot, setParkingLot] = useState<ParkingItem[]>(initialParkingLot || []);
 
     // Tab State: 'chat' or 'plan'
     const [activeTab, setActiveTab] = useState<'chat' | 'plan'>('chat');
@@ -135,7 +151,7 @@ export default function AgentCanvas({
                     if (nav.resourceId) {
                         const targetRes = availableResources.find(r => r._id === nav.resourceId || r._id?.toString() === nav.resourceId);
                         if (targetRes && targetRes._id !== currentResource?._id) {
-                            switchResource(targetRes);
+                            switchResource(targetRes.id);
                             setNavigationHint(`Switching to ${targetRes.title}...`);
                             // If switching, give it a moment before seeking (if also seeking)
                             // Ideally we queue the seek, but for now let's delay
@@ -262,6 +278,11 @@ export default function AgentCanvas({
             setCompanionStatus(response.progress?.isComplete ? "Great session!" : "I'm here if you need me");
         } catch (error: any) {
             console.error('Action error:', error);
+            if (error.message?.includes('Unauthorized') || error.message?.includes('Session not found')) {
+                setCompanionStatus('Session expired. Redirecting...');
+                router.push('/login');
+                return;
+            }
             setCompanionStatus(`Error: ${error.message || "Something went wrong"}`);
         } finally {
             setLoading(false);
@@ -287,7 +308,7 @@ export default function AgentCanvas({
         if (isToolOnly) {
             return (
                 <div key={index} className="flex flex-col gap-2 items-center py-2 animate-in fade-in slide-in-from-bottom-2">
-                    {item.toolResults?.map((res, idx) => {
+                    {item.toolResults?.map((res, idx: number) => {
                         if (res.type === 'milestone_update') {
                             return (
                                 <div key={idx} className="flex items-center gap-2 text-xs text-gray-500 font-medium bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100 shadow-sm">
@@ -493,7 +514,7 @@ export default function AgentCanvas({
                                                             // Switch if needed
                                                             if (targetRes && targetRes._id !== currentResource?._id) {
                                                                 console.log("Switching to resource:", targetRes.title);
-                                                                switchResource(targetRes);
+                                                                switchResource(targetRes.id);
                                                                 await new Promise(r => setTimeout(r, 1500));
                                                             } else if (!targetRes && currentResource?.type !== 'video' && currentResource?.type !== 'audio') {
                                                                 alert("No video resource found to jump to.");

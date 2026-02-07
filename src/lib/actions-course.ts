@@ -362,6 +362,12 @@ async function createVideoResource(courseId: string, folderId: string | null, ur
         console.error("Failed to fetch YouTube metadata for " + url, e);
     }
 
+    // Initialize fields with default/undefined
+    const knowledgeBase = undefined;
+    const learningMap: any[] = [];
+    const totalConcepts = 0;
+    const documentType = 'video';
+
     // 1. Create Resource Immediately (Processing State)
     const resource = await Resource.create({
         userId,

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 import { LayoutDashboard, FolderOpen, Settings, LogOut, Disc, Play } from 'lucide-react';
 import { getSidebarData } from '@/lib/actions-navigation';
 
@@ -30,7 +31,7 @@ export default function Sidebar() {
 
             {/* Core Nav */}
             <nav className="space-y-3 mb-8">
-                <NavItem href="/dashboard" icon={<LayoutDashboard size={20} />} label="Overview" active={pathname === '/dashboard'} />
+                <NavItem href="/dashboard" icon={<LayoutDashboard size={20} />} label="Overview" active={pathname === '/dashboard' || pathname === '/dashboard/'} />
                 <NavItem href="/dashboard/courses" icon={<FolderOpen size={20} />} label="My Courses" active={pathname.startsWith('/dashboard/courses')} />
                 <NavItem href="/dashboard/settings" icon={<Settings size={20} />} label="Settings" active={pathname === '/dashboard/settings'} />
             </nav>
@@ -63,7 +64,10 @@ export default function Sidebar() {
             {!missions.length && <div className="flex-1" />}
 
             {/* Sign Out */}
-            <button className="flex items-center gap-4 px-4 py-3 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-colors font-medium mt-auto">
+            <button
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                className="flex items-center gap-4 px-4 py-3 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-colors font-medium mt-auto"
+            >
                 <LogOut size={20} />
                 <span>Sign Out</span>
             </button>

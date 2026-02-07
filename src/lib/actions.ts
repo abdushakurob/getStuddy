@@ -58,3 +58,12 @@ export async function register(prevState: string | undefined, formData: FormData
         throw error;
     }
 }
+
+export async function handleAuth(prevState: string | undefined, formData: FormData) {
+    const mode = formData.get('mode');
+    if (mode === 'login') {
+        return authenticate(prevState, formData);
+    } else {
+        return register(prevState, formData);
+    }
+}

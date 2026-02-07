@@ -6,6 +6,7 @@ import React, { createContext, useContext, useState, useRef, useCallback } from 
 // Resource type
 export type Resource = {
     id: string;
+    _id?: string; // Mongoose ID
     title: string;
     url: string;
     type: string;

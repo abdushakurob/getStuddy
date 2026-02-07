@@ -1,162 +1,44 @@
-import { SchemaType } from "@google/generative-ai";
-import { genAI, AI_MODEL } from './ai-config';
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { AI_MODEL } from "./ai-config";
 
-// Companion Tools - Designed for natural conversation, not robotic interactions
+// --- Configuration ---
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_KEY!);
+
 const tools = [
     {
         name: "navigate_resource",
-        description: "Point the student to a specific location in their material. Use this to reference what they're studying - 'Let me show you this on page 5'",
+        description: "Navigates the user's view to a specific page or location in a resource. Use this to grounding explanations.",
         parameters: {
-            type: "object",
+            type: SchemaType.OBJECT,
             properties: {
-                page: {
-                    type: "number",
-                    description: "Page number for PDFs (1-indexed)"
-                },
-                timestamp: {
-                    type: "string",
-                    description: "Timestamp for videos/audio (e.g., '2:30' or '1:45:30')"
-                },
-                context: {
-                    type: "string",
-                    description: "What you want them to look at (e.g., 'the diagram showing variable scope')"
-                },
-                resource_id: {
-                    type: "string",
-                    description: "Optional: ID of the resource to switch to. Only use if navigating to a DIFFERENT resource."
-                }
+                page: { type: SchemaType.NUMBER, description: "Page number (For PDF documents only)" },
+                timestamp: { type: SchemaType.STRING, description: "Timestamp (e.g. '1:30' or '90') for Video/Audio only." },
+                concept: { type: SchemaType.STRING, description: "The concept being shown (optional context)" },
+                context: { type: SchemaType.STRING, description: "The concept being shown (optional context)" },
+                resource_id: { type: SchemaType.STRING, description: "ID of the resource to switch to. See AVAILABLE RESOURCES list." }
             },
             required: ["context"]
         }
     },
-    // explain_concept and check_understanding removed - AI should do this naturally in chat.
-    {
-        name: "offer_paths",
-        description: "Offer the student choices for where to go next. Make these feel like natural suggestions, not robot buttons.",
-        parameters: {
-            type: "object",
-            properties: {
-                paths: {
-                    type: "array",
-                    items: {
-                        type: "object",
-                        properties: {
-                            suggestion: { type: "string", description: "Natural language suggestion (e.g., 'Dive deeper into this')" },
-                            reason: { type: "string", description: "Why this might be good for them" },
-                            type: { type: "string", enum: ["continue", "explore", "skip", "review", "practice"] }
-                        }
-                    },
-                    description: "2-4 natural paths forward"
-                }
-            },
-            required: ["paths"]
-        }
-    },
-    {
-        name: "note_progress",
-        description: "Internally track that a concept has been covered. Call this when you sense understanding through conversation - not just when they click a button.",
-        parameters: {
-            type: "object",
-            properties: {
-                concept: { type: "string", description: "What concept was covered" },
-                understanding_level: {
-                    type: "string",
-                    enum: ["introduced", "explained", "practiced", "confident"],
-                    description: "How well they seem to understand"
-                },
-                evidence: { type: "string", description: "What made you think they understand (e.g., 'correctly explained back', 'asked insightful follow-up')" }
-            },
-            required: ["concept", "understanding_level"]
-        }
-    },
-    {
-        name: "suggest_skip",
-        description: "When you sense the student already knows this, offer to skip ahead with an optional quick review",
-        parameters: {
-            type: "object",
-            properties: {
-                current_concept: { type: "string" },
-                skip_to: { type: "string", description: "What concept to skip to" },
-                quick_review_question: { type: "string", description: "A quick question to confirm they know it before skipping" }
-            },
-            required: ["current_concept", "skip_to"]
-        }
-    },
-    {
-        name: "wrap_up_session",
-        description: "End the session naturally. Summarize what was learned and set up for next time.",
-        parameters: {
-            type: "object",
-            properties: {
-                summary: { type: "string", description: "Warm recap of what was accomplished" },
-                concepts_covered: { type: "array", items: { type: "string" } },
-                next_time_preview: { type: "string", description: "Brief tease of what's coming next" }
-            },
-            required: ["summary", "concepts_covered"]
-        }
-    }
+    // ... other tools can be added here if shared
 ];
 
-// Extended context with structured learning data
-interface CompanionContext {
-    // Session info
-    topicName: string;
-    sessionGoal?: string;
+export function initializeCompanion(context: any) {
+    // Generate Roadmap Text
+    const milestonesText = (context.milestones && context.milestones.length > 0)
+        ? context.milestones.map((m: any) => `- [${m.status === 'completed' ? 'x' : ' '}] ${m.label} ${m.status === 'active' ? '(CURRENT)' : ''}`).join('\n')
+        : "No roadmap yet. Plan the session.";
 
-    // Resource info
-    resourceTitle?: string;
-    resourceType: string;
-    resourceUrl?: string;
-
-    // Structured learning data from document analysis
-    learningMap?: Array<{
-        topic: string;
-        concepts: Array<{
-            name: string;
-            location: string;
-            prerequisites: string[];
-            difficulty: string;
-            keyPoints: string[];
-        }>;
-    }>;
-    suggestedOrder?: string[];
-    totalConcepts?: number;
-
-    // Content
-    knowledgeBase?: string;
-
-    // Progress
-    conceptsCovered?: Array<{
-        concept: string;
-        level: string;
-    }>;
-
-    // Agentic State
-    milestones?: Array<{ label: string; status: string; reasoning: string }>;
-    parkingLot?: Array<{ topic: string; question: string }>;
-    mood?: { userEngagement: string; agentMode: string };
-
-    // Multi-Resource Awareness
-    maxDepth?: number;
-    availableResourcesList?: string; // Formatted list of ID: Title (Type)
-}
-
-export async function initializeCompanion(context: CompanionContext) {
-    // Format Milestones for Prompt
-    const milestonesText = context.milestones?.map((m) =>
-        `- [${m.status === 'completed' ? 'x' : ' '}] ${m.label} (${m.status})`
-    ).join('\n') || "No formal milestones.";
-
-    const currentMilestone = context.milestones?.find((m) => m.status === 'active')
-        || context.milestones?.find((m) => m.status === 'pending');
+    const currentMilestone = context.milestones?.find((m: any) => m.status === 'active')
+        || context.milestones?.find((m: any) => m.status === 'pending');
 
     const parkingLotText = (context.parkingLot && context.parkingLot.length > 0)
-        ? context.parkingLot.map((p) => `- ${p.topic}: ${p.question}`).join('\n')
+        ? context.parkingLot.map((p: any) => `- ${p.topic}: ${p.question}`).join('\n')
         : "Empty";
 
     const systemPrompt = `
-    You are Studdy, an Agentic Study Companion.
-    Your goal is not just to answer, but to DRIVE the session towards learning goals.
+    You are the **Academic Companion**, a helpful, encouraging, and highly intelligent study guide.
+    Your goal is to help the learner master the material in the current syllabus or topic.
 
     ═══════════════════════════════════════════════════════════
     SESSION STATE (THE "ANCHOR")
@@ -243,7 +125,7 @@ export async function initializeCompanion(context: CompanionContext) {
     - **CODE EXECUTION**: Use \`run_code\` to demonstrate Python concepts. The user can see the output!
 
     ALREADY COVERED:
-    ${context.conceptsCovered?.map(c => `• ${c.concept} (${c.level})`).join('\n') || 'Starting fresh'}
+    ${context.conceptsCovered?.map((c: any) => `• ${c.concept} (${c.level})`).join('\n') || 'Starting fresh'}
     `;
 
     // Add new tools to the toolset

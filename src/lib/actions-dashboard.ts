@@ -3,6 +3,7 @@
 import { auth } from '@/auth';
 import dbConnect from './db';
 import StudyPlan from '@/models/StudyPlan';
+import Session from '@/models/Session';
 import { startSession } from './actions-session';
 import { redirect } from 'next/navigation';
 
@@ -12,9 +13,18 @@ export async function getDashboardData() {
 
     await dbConnect();
 
-    // 1. Fetch Active Plan (The latest ONE)
-    // We populate the course details to get the color/title
-    const plan = await StudyPlan.findOne({
+    // 1. Fetch Last Active Session (for "Jump Back In")
+    const lastSession = await Session.findOne({
+        userId: session.user.id,
+        status: { $ne: 'abandoned' } // any active or completed session
+    })
+        .sort({ updatedAt: -1 })
+        .populate('courseId', 'title color')
+        .lean();
+
+    // 2. Fetch Active Courses (from StudyPlans or just Courses?)
+    // Let's fetch StudyPlans as they track progress.
+    const activePlans = await StudyPlan.find({
         userId: session.user.id,
         status: 'active'
     })
@@ -22,44 +32,26 @@ export async function getDashboardData() {
         .populate('courseId', 'title color')
         .lean();
 
-    if (!plan) {
-        return {
-            hasPlan: false,
-            mission: null,
-            stats: { streak: 0, xp: 0, progress: 0 }
-        };
-    }
-
-    // 2. Find The Next Mission (First Pending Task)
-    // We ignore dates for ordering, just grab the first uncompleted one.
-    // If all done, grab the last one? Or just the first one.
-    const schedule = plan.schedule || [];
-    const activeTask = schedule.find((t: any) => t.status === 'pending') || schedule[0];
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const taskDate = new Date(activeTask.date);
-    taskDate.setHours(0, 0, 0, 0);
-    const isToday = taskDate.getTime() === today.getTime();
-
     return {
-        hasPlan: true,
-        planId: plan._id.toString(),
-        course: {
-            title: (plan.courseId as any)?.title || "Course",
-            color: (plan.courseId as any)?.color || "#4C8233"
+        user: {
+            name: session.user.name
         },
-        mission: activeTask ? {
-            topicName: activeTask.topicName,
-            reasoning: activeTask.reasoning,
-            dateString: activeTask.date.toISOString(),
-            isToday
+        lastSession: lastSession ? {
+            id: lastSession._id.toString(),
+            courseTitle: (lastSession.courseId as any)?.title || "Unknown Course",
+            courseColor: (lastSession.courseId as any)?.color || "#000000",
+            topicName: lastSession.topicName,
+            date: lastSession.updatedAt || lastSession.startTime,
+            isComplete: lastSession.status === 'completed'
         } : null,
-        stats: {
-            streak: 0,
-            xp: 0,
-            progress: plan.progress || 0
-        }
+        activeCourses: activePlans.map(plan => ({
+            planId: plan._id.toString(),
+            courseId: (plan.courseId as any)?._id.toString(),
+            title: (plan.courseId as any)?.title || "Untitled Course",
+            color: (plan.courseId as any)?.color || "#4C8233",
+            progress: plan.progress || 0,
+            phase: plan.phase || "Foundation"
+        }))
     };
 }
 

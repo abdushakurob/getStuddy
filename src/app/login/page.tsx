@@ -2,13 +2,13 @@
 
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { authenticate, register } from '@/lib/actions';
+import { handleAuth } from '@/lib/actions';
 import { useState } from 'react';
 import { ArrowRight, Bot, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
     const [isLogin, setIsLogin] = useState(true);
-    const [errorMessage, dispatch, isPending] = useActionState(isLogin ? authenticate : register, undefined);
+    const [errorMessage, dispatch, isPending] = useActionState(handleAuth, undefined);
 
     const toggleMode = () => {
         setIsLogin(!isLogin);
@@ -32,24 +32,27 @@ export default function LoginPage() {
 
                     <div className="text-center mb-8">
                         <h1 className="text-2xl font-black text-[#1F2937] mb-2">
-                            {isLogin ? 'Welcome Back, Agent.' : 'Initialize Profile'}
+                            {isLogin ? 'Welcome Back.' : 'Create Profile'}
                         </h1>
                         <p className="text-gray-500 font-medium text-sm">
-                            {isLogin ? 'Resume your mission.' : 'Your companion is waiting.'}
+                            {isLogin ? 'Resume your learning.' : 'Your companion is waiting.'}
                         </p>
                     </div>
 
                     <form action={dispatch} className="space-y-4">
+                        <input type="hidden" name="mode" value={isLogin ? 'login' : 'register'} />
                         {!isLogin && (
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-2">Codename (Name)</label>
-                                <input name="name" type="text" placeholder="e.g. Agent Smith" className="w-full p-4 bg-gray-50 rounded-2xl border border-gray-100 focus:outline-none focus:border-[#4C8233] font-bold text-[#1F2937] placeholder-gray-400 transition-colors" required />
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-2">Name</label>
+                                    <input name="name" type="text" placeholder="e.g. Alex Smith" className="w-full p-4 bg-gray-50 rounded-2xl border border-gray-100 focus:outline-none focus:border-[#4C8233] font-bold text-[#1F2937] placeholder-gray-400 transition-colors" required />
+                                </div>
                             </div>
                         )}
 
                         <div>
                             <label className="block text-xs font-bold text-gray-500 uppercase mb-1 ml-2">Email</label>
-                            <input name="email" type="email" placeholder="agent@hq.com" className="w-full p-4 bg-gray-50 rounded-2xl border border-gray-100 focus:outline-none focus:border-[#4C8233] font-bold text-[#1F2937] placeholder-gray-400 transition-colors" required />
+                            <input name="email" type="email" placeholder="student@example.com" className="w-full p-4 bg-gray-50 rounded-2xl border border-gray-100 focus:outline-none focus:border-[#4C8233] font-bold text-[#1F2937] placeholder-gray-400 transition-colors" required />
                         </div>
 
                         <div>
@@ -58,7 +61,7 @@ export default function LoginPage() {
                         </div>
 
                         <div className="pt-4">
-                            <LoginButton label={isLogin ? 'Access Dashboard' : 'Deploy Agent'} />
+                            <LoginButton label={isLogin ? 'Access Dashboard' : 'Start Learning'} />
                         </div>
 
                         {errorMessage && (
@@ -70,7 +73,7 @@ export default function LoginPage() {
 
                     <div className="mt-8 text-center">
                         <button onClick={toggleMode} className="text-sm font-bold text-gray-400 hover:text-[#4C8233] transition-colors">
-                            {isLogin ? "New recruit? Deploy Agent" : "Already active? Login"}
+                            {isLogin ? "New here? Create Profile" : "Already have an account? Login"}
                         </button>
                     </div>
 

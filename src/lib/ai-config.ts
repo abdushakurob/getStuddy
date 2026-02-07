@@ -18,14 +18,17 @@ export const genAI = new GoogleGenerativeAI(apiKey || "PENDING_KEY");
 // ============================================
 // MODEL CONFIGURATION - EDIT THIS TO CHANGE MODEL
 // ============================================
-export const AI_MODEL = "gemini-2.5-flash";
+export const AI_MODEL = "gemini-2.5-flash-lite";
 
 // Available models (for reference):
 // gemini-3-flash-preview
-// - gemini-2.5-flash-lite (fast, cheaper)
-// - gemini-2.0-flash (balanced)
-// - gemini-2.0-pro (powerful, slower)
-// - gemini-1.5-flash (legacy)
+// gemini-3-pro-preview
+// gemini-2.5-flash
+// gemini-2.5-flash-lite
+// gemini-2.5-pro
+// gemini-2.0-flash
+// gemini-2.0-pro
+// gemini-2.0-flash-lite
 // ============================================
 
 /**

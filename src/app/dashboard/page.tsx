@@ -1,7 +1,8 @@
 import { auth } from '@/auth';
-import { Calendar, Flame, Zap, ArrowRight, Clock, Target, CheckCircle } from 'lucide-react';
+import { Calendar, Play, FolderOpen, ArrowRight, Clock, Plus, BookOpen } from 'lucide-react';
 import Link from 'next/link';
-import { getDashboardData, continueMission } from '@/lib/actions-dashboard';
+import { getDashboardData } from '@/lib/actions-dashboard';
+import Greeting from '@/components/dashboard/Greeting';
 
 export default async function DashboardPage() {
     const session = await auth();
@@ -9,8 +10,8 @@ export default async function DashboardPage() {
     const data = await getDashboardData();
 
     // Helper to format date
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    const formatDate = (date: Date) => {
+        return new Date(date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
     };
 
     return (
@@ -20,122 +21,108 @@ export default async function DashboardPage() {
             <div className="mb-10">
                 <div className="flex items-center gap-2 mb-2">
                     <span className="text-2xl">☀️</span>
-                    <h1 className="text-3xl font-black text-[#1F2937]">Good Morning, {user?.name?.split(' ')[0] || 'Scholar'}.</h1>
+                    <Greeting userName={user?.name?.split(' ')[0] || 'Friend'} />
                 </div>
                 <p className="text-gray-500 font-medium">
-                    {data?.hasPlan ? "I've got your next topic ready." : "Ready to get started?"}
+                    Ready to learn something new today?
                 </p>
             </div>
 
-            {/* --- HERO: DAILY MISSION --- */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+            {/* --- JUMP BACK IN --- */}
+            {data?.lastSession && (
+                <div className="mb-12">
+                    <h2 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Jump Back In</h2>
+                    <Link href={`/work/${data.lastSession.id}`} className="block group">
+                        <div className="bg-[#1F2937] rounded-[32px] p-8 text-white relative overflow-hidden transition-transform hover:scale-[1.01] duration-300">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-16 -mt-16 blur-3xl pointer-events-none"></div>
 
-                {/* Mission Card (Dynamic) */}
-                <div className="md:col-span-2 bg-[#1F2937] rounded-[32px] p-8 text-white relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-[#4C8233] opacity-20 blur-[80px] rounded-full group-hover:scale-110 transition-transform duration-700 pointer-events-none"></div>
-
-                    <div className="relative z-10 h-full flex flex-col">
-                        <div className="flex items-start justify-between mb-8">
-                            <div>
-                                <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full text-xs font-bold text-[#4C8233] mb-3 border border-white/5">
-                                    <Zap size={14} fill="currentColor" />
-                                    <span>{data?.hasPlan ? "UP NEXT" : "NO PLAN YET"}</span>
+                            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                                <div>
+                                    <div className="flex items-center gap-3 mb-3">
+                                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-white/10 border border-white/5 text-gray-300">
+                                            Last Active
+                                        </span>
+                                        <span className="text-sm text-gray-400 flex items-center gap-1">
+                                            <Clock size={14} />
+                                            {formatDate(data.lastSession.date)}
+                                        </span>
+                                    </div>
+                                    <h3 className="text-3xl font-black mb-2 leading-tight group-hover:text-[#4C8233] transition-colors">
+                                        {data.lastSession.topicName}
+                                    </h3>
+                                    <p className="text-gray-400 font-medium flex items-center gap-2">
+                                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: data.lastSession.courseColor }}></span>
+                                        {data.lastSession.courseTitle}
+                                    </p>
                                 </div>
 
-                                {data?.hasPlan && data.mission ? (
-                                    <>
-                                        <h2 className="text-3xl font-black mb-2 leading-tight">{data.mission.topicName}</h2>
-                                        <p className="text-gray-400 font-medium max-w-md">
-                                            {data.mission.reasoning || "Focus on this topic to advance your goal."}
-                                        </p>
-                                        <div className="mt-4 flex items-center gap-3 text-sm text-gray-300">
-                                            <span>{data.mission.isToday ? "Scheduled for Today" : `Coming up on ${formatDate(data.mission.dateString)}`}</span>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <h2 className="text-3xl font-black mb-2 leading-tight">Setup Your Strategy</h2>
-                                        <p className="text-gray-400 font-medium max-w-md">
-                                            To get your daily plan, upload a syllabus and chat with the Agent.
-                                        </p>
-                                    </>
-                                )}
+                                <div className="w-16 h-16 rounded-full bg-[#4C8233] flex items-center justify-center shrink-0 group-hover:bg-[#3D6A29] transition-colors shadow-lg shadow-[#4C8233]/20">
+                                    <Play size={24} fill="currentColor" className="ml-1" />
+                                </div>
                             </div>
                         </div>
+                    </Link>
+                </div>
+            )}
 
-                        <div className="mt-auto">
-                            {data?.hasPlan ? (
-                                <form action={continueMission}>
-                                    <button
-                                        type="submit"
-                                        className="inline-flex items-center gap-2 px-6 py-3 bg-[#4C8233] text-white rounded-2xl font-bold hover:bg-[#3D6A29] transition-colors w-full md:w-auto justify-center"
-                                    >
-                                        <span>Go to Mission</span>
-                                        <ArrowRight size={18} />
-                                    </button>
-                                </form>
-                            ) : (
-                                <Link href="/dashboard/courses" className="inline-flex items-center gap-2 px-6 py-3 bg-[#4C8233] text-white rounded-2xl font-bold hover:bg-[#3D6A29] transition-colors">
-                                    <span>Go to Courses</span>
-                                    <ArrowRight size={18} />
-                                </Link>
-                            )}
-                        </div>
-                    </div>
+            {/* --- MY COURSES --- */}
+            <div className="mb-12">
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold text-[#1F2937] flex items-center gap-2">
+                        <FolderOpen size={20} className="text-gray-400" />
+                        <span>My Library</span>
+                    </h2>
+                    <Link href="/dashboard/courses/new" className="text-sm font-bold text-[#4C8233] hover:underline flex items-center gap-1">
+                        <Plus size={16} /> New Course
+                    </Link>
                 </div>
 
-                {/* Stats Column */}
-                <div className="space-y-6">
-                    {/* Progress Card (Replaces Streak for now if 0) */}
-                    <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm flex flex-col items-center justify-center text-center h-48 relative overflow-hidden">
-                        {/* Simple Circular Progress Placeholder */}
-                        <div className="relative w-24 h-24 mb-2 flex items-center justify-center">
-                            <svg className="w-full h-full" viewBox="0 0 36 36">
-                                <path
-                                    className="text-gray-100"
-                                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="4"
-                                />
-                                <path
-                                    className="text-[#4C8233]"
-                                    strokeDasharray={`${data?.stats?.progress || 0}, 100`}
-                                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="4"
-                                />
-                            </svg>
-                            <span className="absolute text-xl font-black text-[#1F2937]">{data?.stats?.progress || 0}%</span>
+                {data?.activeCourses && data.activeCourses.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {data.activeCourses.map((course: any) => (
+                            <Link key={course.planId} href={`/dashboard/courses/${course.courseId}`} className="group block">
+                                <div className="bg-white border border-gray-100 rounded-[24px] p-6 hover:shadow-md transition-all h-full flex flex-col">
+                                    <div className="flex items-start justify-between mb-4">
+                                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-sm" style={{ backgroundColor: course.color }}>
+                                            <BookOpen size={20} />
+                                        </div>
+                                        {/* Progress Pill */}
+                                        <div className="px-2 py-1 bg-gray-50 rounded-lg text-xs font-bold text-gray-500">
+                                            {course.progress}%
+                                        </div>
+                                    </div>
+
+                                    <h3 className="text-lg font-bold text-gray-800 mb-1 line-clamp-2 leading-tight group-hover:text-black">
+                                        {course.title}
+                                    </h3>
+                                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mt-auto pt-4">
+                                        {course.phase} Phase
+                                    </p>
+                                </div>
+                            </Link>
+                        ))}
+
+                        {/* Add New Card */}
+                        <Link href="/dashboard/courses/new" className="group block h-full">
+                            <div className="border-2 border-dashed border-gray-200 rounded-[24px] p-6 flex flex-col items-center justify-center h-full text-gray-400 hover:border-[#4C8233] hover:text-[#4C8233] hover:bg-[#4C8233]/5 transition-all min-h-[180px]">
+                                <Plus size={32} className="mb-2" />
+                                <span className="font-bold">Add Material</span>
+                            </div>
+                        </Link>
+                    </div>
+                ) : (
+                    <div className="bg-white rounded-[32px] border border-gray-100 p-12 text-center">
+                        <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-gray-300">
+                            <FolderOpen size={24} />
                         </div>
-                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wide">Plan Completion</div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-2">Library Empty</h3>
+                        <p className="text-gray-500 mb-6 max-w-sm mx-auto">Upload a syllabus, YouTube playlist, or textbook to start learning.</p>
+                        <Link href="/dashboard/courses/new" className="inline-flex items-center gap-2 px-6 py-3 bg-[#4C8233] text-white rounded-2xl font-bold hover:bg-[#3D6A29] transition-colors">
+                            <Plus size={18} />
+                            <span>Create First Course</span>
+                        </Link>
                     </div>
-
-                    {/* XP / Mastery */}
-                    <div className="bg-indigo-600 p-6 rounded-[32px] shadow-lg shadow-indigo-200 flex flex-col items-center justify-center text-center h-48 text-white relative overflow-hidden">
-                        <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-3 backdrop-blur-sm">
-                            <Target size={24} fill="currentColor" />
-                        </div>
-                        <div className="text-4xl font-black mb-1">{data?.stats?.xp || 0}</div>
-                        <div className="text-xs font-bold text-white/60 uppercase tracking-wide">Mastery XP</div>
-                    </div>
-                </div>
-            </div>
-
-            {/* --- RECENT ACTIVITY --- */}
-            <div>
-                <h3 className="text-xl font-bold text-[#1F2937] mb-6 flex items-center gap-2">
-                    <Clock size={20} className="text-gray-400" />
-                    <span>Recent Activity</span>
-                </h3>
-
-                <div className="bg-white rounded-[32px] border border-gray-100 p-8 text-center text-gray-400 font-medium">
-                    <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-gray-300">
-                        <Calendar size={24} />
-                    </div>
-                    No recent sessions. Completing a mission will trigger your streak.
-                </div>
+                )}
             </div>
 
         </div>
