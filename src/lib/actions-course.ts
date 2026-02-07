@@ -412,7 +412,12 @@ async function createVideoResource(courseId: string, folderId: string | null, ur
         } catch (e: any) {
             console.error(`Background Analysis Failed for video ${url}:`, e);
             resource.status = 'error';
-            resource.errorMessage = e?.message || 'Unknown analysis error';
+            // Specific timeout handling
+            if (e.message?.includes('timeout') || e.name === 'AbortError') {
+                resource.errorMessage = 'Analysis timed out (10m limit). Try a shorter video.';
+            } else {
+                resource.errorMessage = e?.message || 'Unknown analysis error';
+            }
             await resource.save();
         }
     })();
