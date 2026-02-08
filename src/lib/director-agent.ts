@@ -1,8 +1,7 @@
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
-import { AI_MODEL } from "./ai-config";
+import { SchemaType } from "@google/generative-ai";
+import { AI_MODEL, genAI } from "./ai-config";
 
 // --- Configuration ---
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_KEY!);
 
 const tools = [
     {

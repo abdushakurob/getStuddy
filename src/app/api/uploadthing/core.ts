@@ -80,11 +80,11 @@ const handleFile = async ({ file, metadata }: any) => {
 
 export const ourFileRouter = {
     resourceUploader: f({
-        pdf: { maxFileSize: "16MB", maxFileCount: 5 },
-        image: { maxFileSize: "8MB", maxFileCount: 5 },
-        audio: { maxFileSize: "32MB", maxFileCount: 2 },
-        video: { maxFileSize: "64MB", maxFileCount: 1 },
-        blob: { maxFileSize: "16MB", maxFileCount: 5 } // Fallback for other types
+        pdf: { maxFileSize: "16MB", maxFileCount: 10 },
+        image: { maxFileSize: "8MB", maxFileCount: 10 },
+        audio: { maxFileSize: "32MB", maxFileCount: 5 },
+        video: { maxFileSize: "64MB", maxFileCount: 5 },
+        blob: { maxFileSize: "16MB", maxFileCount: 10 } // Fallback
     })
         .input(z.object({
             courseId: z.string(),
@@ -98,7 +98,15 @@ export const ourFileRouter = {
             return { userId: session.user.id, courseId: input.courseId, folderId: input.folderId };
         })
         .onUploadComplete(async ({ metadata, file }) => {
-            await handleFile({ file, metadata });
+            // Use waitUntil to keep the lambda alive for background processing
+            // This is critical for Vercel/Serverless environments
+            const { waitUntil } = await import('@vercel/functions');
+
+            waitUntil(
+                (async () => {
+                    await handleFile({ file, metadata });
+                })()
+            );
         }),
 } satisfies FileRouter;
 

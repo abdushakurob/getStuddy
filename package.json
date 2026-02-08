@@ -12,6 +12,7 @@
     "@google/generative-ai": "^0.24.1",
     "@tailwindcss/typography": "^0.5.19",
     "@uploadthing/react": "^7.3.3",
+    "@vercel/functions": "^3.4.1",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "framer-motion": "^12.29.2",
