@@ -24,15 +24,19 @@ export async function getDashboardData() {
             .populate('courseId', 'title color')
             .lean();
 
-        // 2. Fetch Active Courses (from StudyPlans or just Courses?)
-        // Let's fetch StudyPlans as they track progress.
+        // 2. Fetch ALL Courses (not just those with plans)
+        const courses = await Course.find({ userId: session.user.id })
+            .sort({ updatedAt: -1 })
+            .lean();
+
+        // 3. Fetch Active Plans to overlay progress
         const activePlans = await StudyPlan.find({
             userId: session.user.id,
             status: 'active'
-        })
-            .sort({ updatedAt: -1 })
-            .populate('courseId', 'title color')
-            .lean();
+        }).lean();
+
+        // Map plans by courseId for easy lookup
+        const planMap = new Map(activePlans.map(p => [p.courseId.toString(), p]));
 
         return {
             user: {
@@ -46,14 +50,17 @@ export async function getDashboardData() {
                 date: lastSession.updatedAt || lastSession.startTime,
                 isComplete: lastSession.status === 'completed'
             } : null,
-            activeCourses: activePlans.map(plan => ({
-                planId: plan._id.toString(),
-                courseId: (plan.courseId as any)?._id.toString(),
-                title: (plan.courseId as any)?.title || "Untitled Course",
-                color: (plan.courseId as any)?.color || "#4C8233",
-                progress: plan.progress || 0,
-                phase: plan.phase || "Foundation"
-            }))
+            activeCourses: courses.map(course => {
+                const plan: any = planMap.get(course._id.toString());
+                return {
+                    planId: plan?._id.toString() || "no-plan", // logic in UI might need this or just ignore
+                    courseId: course._id.toString(),
+                    title: course.title,
+                    color: course.color || "#4C8233",
+                    progress: plan?.progress || 0,
+                    phase: plan?.phase || "New"
+                };
+            })
         };
     } catch (error) {
         console.error("getDashboardData Error:", error);
