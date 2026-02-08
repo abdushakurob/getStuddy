@@ -18,7 +18,7 @@ export const genAI = new GoogleGenerativeAI(apiKey || "PENDING_KEY");
 // ============================================
 // MODEL CONFIGURATION - EDIT THIS TO CHANGE MODEL
 // ============================================
-export const AI_MODEL = "gemini-3-flash-preview";
+export const AI_MODEL = "gemini-2.5-flash-lite";
 
 // Available models (for reference):
 // gemini-3-flash-preview
