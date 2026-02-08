@@ -328,10 +328,15 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
         }
     }
 
+    // Clean up response text (remove any hallucinations of [Action: ...])
+    const cleanContent = (response.text || '')
+        .replace(/\[Action:.*?\]/g, '')
+        .trim();
+
     // Add assistant response to transcript
     studySession.transcript.push({
         role: 'assistant',
-        content: response.text || '',
+        content: cleanContent,
         timestamp: new Date(),
         toolCalls: response.toolCalls.map((tc: any) => ({
             tool: tc.name,
@@ -346,7 +351,7 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
 
     // Return extended results including plan updates
     return {
-        message: response.text,
+        message: cleanContent,
         toolResults,
         suggestedActions,
         navigationCommands,
