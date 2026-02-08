@@ -26,39 +26,52 @@ export default function AddContentModal({ courseId, folderId, isOpen, onClose }:
     const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'processing' | 'success' | 'error'>('idle');
     const [fileName, setFileName] = useState<string | null>(null);
 
+    const [uploadProgress, setUploadProgress] = useState(0);
+
     const { startUpload } = useUploadThing("resourceUploader", {
         onClientUploadComplete: () => {
             setUploadStatus('success');
+            setUploadProgress(100);
             setTimeout(() => {
                 router.refresh();
                 onClose();
                 setUploadStatus('idle');
                 setFileName(null);
+                setUploadProgress(0);
             }, 1000);
         },
         onUploadError: (error: Error) => {
             console.error(error);
             setUploadStatus('error');
+            setUploadProgress(0);
         },
         onUploadProgress: (p) => {
-            // Optional: could track progress status if available
+            setUploadProgress(p);
         }
     });
 
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files || e.target.files.length === 0) return;
-        const file = e.target.files[0];
-        setFileName(file.name);
+
+        const files = Array.from(e.target.files);
+
+        if (files.length === 1) {
+            setFileName(files[0].name);
+        } else {
+            setFileName(`${files.length} files selected`);
+        }
+
         setUploadStatus('uploading');
 
         // Check for PowerPoint
-        if (file.name.endsWith('.pptx') || file.name.endsWith('.ppt')) {
-            alert("⚠️ Please 'Save as PDF' first. The AI needs PDF format to see your charts and diagrams.");
+        const pptFile = files.find(f => f.name.endsWith('.pptx') || f.name.endsWith('.ppt'));
+        if (pptFile) {
+            alert(`⚠️ File '${pptFile.name}' is a PowerPoint. Please 'Save as PDF' first. The AI needs PDF format.`);
             setUploadStatus('idle');
             return;
         }
 
-        await startUpload([file], {
+        await startUpload(files, {
             courseId,
             folderId: folderId || "null"
         });
@@ -125,6 +138,7 @@ export default function AddContentModal({ courseId, folderId, isOpen, onClose }:
                                 type="file"
                                 ref={fileInputRef}
                                 className="hidden"
+                                multiple // Enable multiple selection
                                 accept=".pdf,image/*,audio/*,video/*"
                                 onChange={handleFileSelect}
                             />
@@ -140,17 +154,16 @@ export default function AddContentModal({ courseId, folderId, isOpen, onClose }:
                                     <div className="text-center">
                                         <p className="font-bold text-gray-900">Click to upload</p>
                                         <p className="text-xs text-gray-500 mt-1">PDF, Audio, Video, Images</p>
-                                        <p className="text-[10px] text-red-400 mt-2 font-medium">Max 20MB (AI Limit)</p>
+                                        <p className="text-[10px] text-gray-400 mt-2 font-medium">Multiple files supported</p>
+                                        <p className="text-[10px] text-red-400 mt-1 font-medium">Max 20MB per file</p>
                                     </div>
                                 </div>
                             ) : (
                                 <div className="flex-1 flex flex-col items-center justify-center gap-4 animate-in fade-in">
                                     <p className="opacity-80 mt-1">
-                                        PDF, Audio (MP3), Video (MP4)
+                                        Uploading to Course...
                                     </p>
-                                    <p className="text-xs text-gray-400 mt-2">
-                                        Max 20MB recommended for AI analysis
-                                    </p>
+
                                     <div className="relative">
                                         {/* Status Icon */}
                                         {uploadStatus === 'success' ? (
@@ -163,13 +176,24 @@ export default function AddContentModal({ courseId, folderId, isOpen, onClose }:
                                             </div>
                                         )}
                                     </div>
-                                    <div className="text-center">
+                                    <div className="text-center flex flex-col items-center gap-2">
                                         <p className="font-bold text-lg text-gray-900">
-                                            {uploadStatus === 'uploading' && "Uploading..."}
+                                            {uploadStatus === 'uploading' && `Uploading... ${Math.round(uploadProgress)}%`}
                                             {uploadStatus === 'processing' && "AI Analyzing..."}
                                             {uploadStatus === 'success' && "Ready!"}
                                         </p>
-                                        <p className="text-sm text-gray-500 mt-1">{fileName}</p>
+
+                                        {/* Progress Bar */}
+                                        {uploadStatus === 'uploading' && (
+                                            <div className="w-48 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full bg-[#4C8233] transition-all duration-300 ease-out"
+                                                    style={{ width: `${uploadProgress}%` }}
+                                                />
+                                            </div>
+                                        )}
+
+                                        <p className="text-sm text-gray-500">{fileName}</p>
                                     </div>
                                 </div>
                             )}
