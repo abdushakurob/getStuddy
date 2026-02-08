@@ -85,6 +85,7 @@ const SessionSchema = new mongoose.Schema({
             args: mongoose.Schema.Types.Mixed,
             result: mongoose.Schema.Types.Mixed
         }],
+        toolResults: [mongoose.Schema.Types.Mixed], // Store processed results for UI
         suggestedActions: [{
             label: String,
             intent: String,

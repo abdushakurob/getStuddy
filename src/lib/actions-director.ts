@@ -337,6 +337,7 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
             tool: tc.name,
             args: tc.args
         })),
+        toolResults: toolResults.length > 0 ? toolResults : undefined, // SAVE TO DB
         suggestedActions: suggestedActions.length > 0 ? suggestedActions : undefined
     });
 
