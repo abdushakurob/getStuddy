@@ -335,10 +335,27 @@ export async function chatWithAgent(message: string, history: any[], contextText
 async function getYouTubeTranscript(url: string) {
     try {
         const { YoutubeTranscript } = await import('youtube-transcript');
-        const transcriptItems = await YoutubeTranscript.fetchTranscript(url);
+
+        // Extract Video ID specifically for better reliability
+        const videoIdMatch = url.match(/(?:v=|\/)([\w-]{11})(?:\?|&|\/|$)/);
+        const videoId = videoIdMatch ? videoIdMatch[1] : null;
+
+        if (!videoId) {
+            console.error("[Transcript] Could not extract video ID from URL:", url);
+            return null;
+        }
+
+        console.log(`[Transcript] Fetching for ID: ${videoId}`);
+        const transcriptItems = await YoutubeTranscript.fetchTranscript(videoId);
+
+        if (!transcriptItems || transcriptItems.length === 0) {
+            console.warn("[Transcript] No transcript items returned.");
+            return null;
+        }
+
         return transcriptItems.map(item => item.text).join(' ');
-    } catch (e) {
-        console.error("Failed to fetch transcript:", e);
+    } catch (e: any) {
+        console.error("Failed to fetch transcript:", e.message);
         return null;
     }
 }
