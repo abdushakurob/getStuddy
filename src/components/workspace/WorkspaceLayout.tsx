@@ -22,7 +22,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
                     {/* Logo Area */}
                     <div className="flex items-center gap-3 mb-10 pl-2">
                         <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center text-white font-bold text-lg">S</div>
-                        {sidebarOpen && <span className="font-bold text-xl tracking-tight">getStuddy</span>}
+                        {sidebarOpen && <span className="font-bold text-xl tracking-tight">gostuddy</span>}
                     </div>
 
                     {/* Navigation */}

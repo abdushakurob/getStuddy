@@ -26,7 +26,7 @@ export default function Sidebar() {
             {/* Logo */}
             <div className="mb-10 flex items-center gap-3 px-2">
                 <div className="w-10 h-10 rounded-xl bg-black flex items-center justify-center text-white font-bold text-lg">S</div>
-                <span className="text-xl font-bold tracking-tight">getStuddy</span>
+                <span className="text-xl font-bold tracking-tight">gostuddy</span>
             </div>
 
             {/* Core Nav */}

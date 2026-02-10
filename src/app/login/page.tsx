@@ -23,7 +23,7 @@ export default function LoginPage() {
                 <div className="flex justify-center mb-8">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-[#4C8233] flex items-center justify-center text-white font-bold text-lg">S</div>
-                        <span className="font-extrabold text-2xl tracking-tight text-[#2F4F2F]">getStuddy</span>
+                        <span className="font-extrabold text-2xl tracking-tight text-[#2F4F2F]">gostuddy</span>
                     </div>
                 </div>
 
