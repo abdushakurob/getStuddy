@@ -13,9 +13,6 @@ export async function POST(req: NextRequest) {
 
         await dbConnect();
 
-        // 1. Fetch Context (The Intel)
-        // For MVP, we get all text from the course. 
-        // Gemini 1.5 Pro has 1M token window, so we can stuff a LOT of text in.
         let context = "";
 
         // If no courseId provided, find the most recent one

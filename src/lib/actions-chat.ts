@@ -258,7 +258,7 @@ IMPORTANT: When adjusting the plan, do NOT modify or reschedule completed missio
         }));
 
         // Check if user already has an active plan for this course
-        let existingPlan = await StudyPlan.findOne({
+        const existingPlan = await StudyPlan.findOne({
             courseId,
             userId: session.user.id,
             status: 'active'

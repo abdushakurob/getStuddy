@@ -138,7 +138,7 @@ export async function getCourseContent(courseId: string, folderId: string | null
     console.log(`[getCourseContent] Found ${resources.length} resources.`);
 
     // Build Breadcrumbs (Navigation)
-    let navigation = [];
+    const navigation = [];
     if (folderId) {
         let currentId = folderId;
         while (currentId) {
