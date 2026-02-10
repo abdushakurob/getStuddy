@@ -8,23 +8,23 @@ import {
 const faqs = [
   {
     q: "What file types are supported?",
-    a: "Currently, Studdy supports PDF documents and YouTube video links. We're working on adding more formats like PowerPoint, audio lectures, and images.",
+    a: "goStuddy acts as a unified workspace for all your learning materials. We currently support PDFs, audio lectures, video files, images, and YouTube links — bringing them all together in one place.",
   },
-  {
-    q: "Is Studdy free to use?",
-    a: "Yes! You can get started for free with no credit card required. We offer generous free usage to help you experience the platform.",
-  },
+  // {
+  //   q: "Is goStuddy free to use?",
+  //   a: "Yes! You can get started for free with no credit card required. We offer generous free usage to help you experience the platform.",
+  // },
   {
     q: "How does the AI understand my content?",
-    a: "Studdy uses Gemini to deeply read and index your uploaded materials. It understands the structure, concepts, and connections across all your documents and videos.",
+    a: "goStuddy uses Gemini to deeply read and index your uploaded materials. It understands the structure, concepts, and connections across all your documents and videos.",
   },
   {
     q: "Can I use it for any subject?",
-    a: "Absolutely. Studdy works with any academic subject — biology, history, math, law, engineering, and more. If you can upload study materials for it, Studdy can help.",
+    a: "Absolutely. goStuddy works with any academic subject — biology, history, math, law, engineering, and more. If you can upload study materials for it, goStuddy can help.",
   },
   {
     q: "What makes this different from ChatGPT?",
-    a: "ChatGPT is a chatbot that answers questions. Studdy is a study director that manages your entire session — it plans, navigates your materials, maintains focus, and adapts to your energy. It's autonomous, not reactive.",
+    a: "ChatGPT is a chatbot that answers questions. goStuddy is an AI study companion that works with you throughout your session. Together, you plan, navigate your materials, maintain focus, and adapt to your energy. It's proactive collaboration, not just reactive answers.",
   },
 ];
 

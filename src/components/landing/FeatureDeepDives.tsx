@@ -5,7 +5,7 @@ const features = [
     id: "negotiated-planning",
     title: "Your Schedule. Your Rules.",
     description:
-      "Tell Studdy you have 20 minutes and it builds a custom high-yield roadmap. Tired? It adjusts. Hyper-focused? It challenges you. Plans are negotiated, not dictated.",
+      "Tell goStuddy you have 20 minutes and it builds a custom high-yield roadmap. Tired? It adjusts. Hyper-focused? It challenges you. Plans are negotiated, not dictated.",
     bullets: ["Dynamic schedule adjustment", "Collaborative goal setting", "Responds to your energy levels"],
     icon: Calendar,
     mockup: (
@@ -29,29 +29,56 @@ const features = [
     id: "multimodal-workspace",
     title: "PDFs. Videos. Diagrams. All in Sync.",
     description:
-      "The agent auto-scrolls your PDF to the right page, seeks your lecture video to the right timestamp, and cross-references across all your materials — automatically.",
+      "The companion auto-scrolls your PDF to the right page, seeks your lecture video to the right timestamp, and cross-references across all your materials — automatically.",
     bullets: ["Auto-pilot navigation", "Clickable citations [Page 42]", "Cross-modal synthesis"],
     icon: Layers,
     mockup: (
-      <div className="space-y-3 rounded-xl border border-border bg-card p-5">
-        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Workspace</div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-lg border border-border bg-muted/50 p-3">
-            <div className="mb-2 text-[10px] font-bold uppercase text-muted-foreground">PDF Viewer</div>
-            <div className="space-y-1.5">
-              <div className="h-2 rounded bg-border" style={{ width: "90%" }} />
-              <div className="h-2 rounded bg-border" style={{ width: "70%" }} />
-              <div className="h-8 rounded bg-primary/10" />
-              <div className="h-2 rounded bg-border" style={{ width: "80%" }} />
+      <div className="space-y-3 rounded-xl border border-border bg-card p-5 relative min-h-[220px] flex items-center justify-center overflow-hidden group">
+        <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground absolute top-5 left-5">Workspace</div>
+
+        {/* Stacked Effect - PDF is Base Layer (Z-10), Media Floats on Top (Z-20, Z-30) */}
+        <div className="relative w-full max-w-[280px] h-[180px] mt-4">
+
+          {/* Base Layer - PDF Reader */}
+          <div className="absolute inset-0 top-6 bg-white rounded-xl border border-border shadow-sm p-4 z-10 flex flex-col gap-2 scale-100 opacity-60 blur-[1px] group-hover:blur-0 group-hover:opacity-80 transition-all duration-500">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="h-6 w-6 rounded bg-red-100 flex items-center justify-center text-red-500 text-[8px] font-bold">PDF</div>
+              <div className="h-2 w-24 bg-gray-100 rounded"></div>
+            </div>
+            <div className="space-y-1.5 opacity-50">
+              <div className="h-2 w-full bg-gray-100 rounded"></div>
+              <div className="h-2 w-[90%] bg-gray-100 rounded"></div>
+              <div className="h-2 w-[95%] bg-gray-100 rounded"></div>
+              <div className="h-2 w-[80%] bg-gray-100 rounded"></div>
+              <div className="h-2 w-[85%] bg-gray-100 rounded"></div>
             </div>
           </div>
-          <div className="rounded-lg border border-border bg-muted/50 p-3">
-            <div className="mb-2 text-[10px] font-bold uppercase text-muted-foreground">Video</div>
-            <div className="flex h-20 items-center justify-center rounded bg-foreground/5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">▶</div>
+
+          {/* Middle Layer - Audio Player (Floating Pills) */}
+          <div className="absolute bottom-4 right-4 bg-purple-50/90 backdrop-blur-sm rounded-full border border-purple-100 shadow-md flex items-center gap-3 px-3 py-1.5 z-20 transform translate-x-4 group-hover:translate-x-0 transition-transform duration-500 delay-100">
+            <div className="flex gap-0.5 h-3 items-end">
+              <div className="w-1 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+              <div className="w-1 h-3 bg-purple-400 rounded-full animate-pulse delay-75"></div>
+              <div className="w-1 h-1.5 bg-purple-400 rounded-full animate-pulse delay-150"></div>
             </div>
-            <div className="mt-2 text-[10px] text-muted-foreground">Lecture_04.mp4 — 14:20</div>
+            <div className="text-[10px] font-medium text-purple-700">Audio Note</div>
           </div>
+
+          {/* Top Layer - Video Player (Floating Overlay) */}
+          <div className="absolute top-0 right-0 left-8 h-28 bg-blue-50/90 backdrop-blur-sm rounded-xl border border-blue-100 shadow-lg flex flex-col items-center justify-center z-30 transform -translate-y-2 translate-x-2 group-hover:translate-y-0 group-hover:translate-x-0 transition-transform duration-500">
+            <div className="relative">
+              <div className="h-10 w-10 rounded-full bg-blue-100/50 flex items-center justify-center text-blue-500 shadow-sm border border-blue-200">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="ml-0.5"><path d="M8 5v14l11-7z" /></svg>
+              </div>
+            </div>
+            <div className="absolute bottom-2 left-3 right-3 flex items-center gap-2">
+              <div className="h-1 flex-1 bg-blue-200 rounded-full overflow-hidden">
+                <div className="h-full w-[40%] bg-blue-500"></div>
+              </div>
+              <div className="text-[8px] font-mono text-blue-600">14:20</div>
+            </div>
+          </div>
+
         </div>
       </div>
     ),
@@ -60,7 +87,7 @@ const features = [
     id: "parking-lot",
     title: "Curiosity Without Distraction",
     description:
-      "Off-topic thought? The agent parks it for later. Stay in flow now, explore rabbit holes after the mission is complete. Never lose a good question.",
+      "Off-topic thought? The companion parks it for later. Stay in flow now, explore rabbit holes after the mission is complete. Never lose a good question.",
     bullets: ["Protect your flow state", "Never lose a good question", "Dedicated exploration time"],
     icon: ParkingCircle,
     mockup: (
@@ -93,9 +120,8 @@ const FeatureDeepDives = () => {
         {features.map((feature, i) => (
           <div
             key={feature.id}
-            className={`flex flex-col items-center gap-12 md:flex-row ${
-              i % 2 === 1 ? "md:flex-row-reverse" : ""
-            }`}
+            className={`flex flex-col items-center gap-12 md:flex-row ${i % 2 === 1 ? "md:flex-row-reverse" : ""
+              }`}
           >
             {/* Text */}
             <div className="flex-1">

@@ -5,19 +5,19 @@ const steps = [
     icon: Upload,
     number: "1",
     title: "Upload",
-    description: "Add your PDFs and paste YouTube lecture links. Studdy reads and indexes everything.",
+    description: "Add your PDFs and paste YouTube lecture links. goStuddy reads and indexes everything.",
   },
   {
     icon: MessageSquare,
     number: "2",
     title: "Negotiate",
-    description: "Tell the agent your time, energy level, and goals. It builds a custom study plan.",
+    description: "Tell the companion your time, energy level, and goals. It builds a custom study plan.",
   },
   {
     icon: GraduationCap,
     number: "3",
     title: "Learn",
-    description: "The agent guides you through materials, keeps you focused, and tracks your progress.",
+    description: "The companion guides you through materials, keeps you focused, and tracks your progress.",
   },
 ];
 

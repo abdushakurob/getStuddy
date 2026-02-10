@@ -30,7 +30,7 @@ const PersonaSection = () => {
             Adaptive Learning Modes
           </h2>
           <p className="mx-auto mt-4 max-w-lg text-muted-foreground">
-            Studdy detects your engagement level and switches modes to keep you in flow.
+            goStuddy detects your engagement level and switches modes to keep you in flow.
           </p>
         </div>
 
