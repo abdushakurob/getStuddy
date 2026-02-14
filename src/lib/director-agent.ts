@@ -28,6 +28,15 @@ export function initializeCompanion(context: any) {
         ? context.milestones.map((m: any) => `- [${m.status === 'completed' ? 'x' : ' '}] ${m.label} ${m.status === 'active' ? '(CURRENT)' : ''}`).join('\n')
         : "No roadmap yet. Plan the session.";
 
+    // Build PAGE INDEX from learning map for accurate page references
+    const pageIndexText = (context.learningMap && context.learningMap.length > 0)
+        ? context.learningMap.map((unit: any) =>
+            `${unit.topic}:\n${(unit.concepts || []).map((c: any) =>
+                `  - ${c.name} → ${c.location || 'Unknown page'}`
+            ).join('\n')}`
+        ).join('\n')
+        : "No page index available. Be cautious with page references.";
+
     const currentMilestone = context.milestones?.find((m: any) => m.status === 'active')
         || context.milestones?.find((m: any) => m.status === 'pending');
 
@@ -67,6 +76,14 @@ export function initializeCompanion(context: any) {
     (guide = explanatory, challenger = questioning/testing, supporter = encouraging)
 
     ═══════════════════════════════════════════════════════════
+    PAGE INDEX (Use EXACT page numbers from here for navigation!)
+    ═══════════════════════════════════════════════════════════
+    ${pageIndexText}
+
+    IMPORTANT: When using navigate_resource, ALWAYS use the page numbers from the PAGE INDEX above.
+    Do NOT guess or infer page numbers from the knowledge base text. The PAGE INDEX is the source of truth.
+
+    ═══════════════════════════════════════════════════════════
     KNOWLEDGE BASE (Search this first!)
     ═══════════════════════════════════════════════════════════
     ${context.knowledgeBase?.substring(0, 500000) || 'No content loaded'}
@@ -97,7 +114,7 @@ export function initializeCompanion(context: any) {
     ═══════════════════════════════════════════════════════════
     TOOL USAGE RULES
     ═══════════════════════════════════════════════════════════
-    - navigate_resource: REQUIRED. Whenever you discuss a specific page/video, YOU MUST CALL THIS TOOL. It auto-scrolls the user's screen. Do not just say "Page 5" — take them there! It also ensures your timestamps are clickable links to the correct video.
+    - navigate_resource: REQUIRED. Whenever you discuss a specific page/video, YOU MUST CALL THIS TOOL. It auto-scrolls the user's screen. CRITICAL: You MUST include a text message with every navigation. Example: "Let's look at the diagram on Page 5 that shows..." followed by the navigate_resource call. NEVER navigate without explaining what you're showing and why. Use page numbers from the PAGE INDEX below — do NOT guess.
     - explain_concept: For deep dives.
     - check_understanding: For those "Flashcard" moments.
     - offer_paths: Use at the very start or if stuck.
@@ -120,7 +137,7 @@ export function initializeCompanion(context: any) {
     - **IMMEDIATE VALUE**: Don't say "Let's start". START. Don't say "I will explain". EXPLAIN.
     - **TONE**: Collaborative, encouraging, "We". "Let's figure this out," "Look what I found in the transcript..."
     - **navigation**: Use \`navigate_resource\` to physically bringing the user to the reference point. Don't just talk about it, SHOW IT.
-    - **NO SILENT TOOLS**: You must ALWAYS provide a message explaining your action. Never call a tool without text.
+    - **NO SILENT TOOLS (CRITICAL RULE)**: You MUST ALWAYS provide a text message alongside ANY tool call. A tool call without text is a CRITICAL ERROR. Always explain what you're doing and why BEFORE or WITH the tool call. Example: "Let me take you to Page 14 where the Endowment Effect is defined..." + navigate_resource call.
     - **CODE EXECUTION**: Use \`run_code\` to demonstrate Python concepts. The user can see the output!
 
     ALREADY COVERED:
@@ -261,8 +278,29 @@ export async function sendCompanionMessage(
         try {
             text = response.text();
         } catch (e) {
-            console.error("Error getting text (likely blocked):", e);
-            text = "I couldn't generate a text response.";
+            console.error("Error getting text (likely function-call-only response):", e);
+            // If we have function calls, generate contextual text from them
+            let functionCalls: any[] = [];
+            try { functionCalls = response.functionCalls() || []; } catch (_) { }
+
+            if (functionCalls.length > 0) {
+                const parts: string[] = [];
+                for (const fc of functionCalls) {
+                    if (fc.name === 'navigate_resource') {
+                        const page = fc.args?.page;
+                        const ts = fc.args?.timestamp;
+                        const ctx = fc.args?.context || fc.args?.concept || '';
+                        parts.push(`Let me take you to ${page ? `Page ${page}` : ts || 'the relevant section'}${ctx ? ` — ${ctx}` : ''}.`);
+                    } else if (fc.name === 'update_milestone') {
+                        parts.push(`${fc.args?.status === 'completed' ? '✅ Completed' : '▶️ Starting'}: **${fc.args?.label}**`);
+                    } else if (fc.name === 'park_topic') {
+                        parts.push(`📌 Parked for later: **${fc.args?.topic}**`);
+                    }
+                }
+                text = parts.length > 0 ? parts.join('\n\n') : "Let me show you something relevant...";
+            } else {
+                text = "I couldn't generate a text response.";
+            }
         }
 
         // Extract tool calls

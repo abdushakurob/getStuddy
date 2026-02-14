@@ -22,7 +22,7 @@ const model = genAI.getGenerativeModel({
             functionDeclarations: [
                 {
                     name: "commit_study_plan",
-                    description: "Saves the agreed-upon study plan to the database. Call this ONLY when the user explicitly agrees to the proposed schedule.",
+                    description: "Saves the agreed-upon study plan. Call this ONLY AFTER you have shown the user the full plan summary AND they explicitly confirmed it (e.g. said 'yes', 'looks good', 'lock it in'). NEVER call immediately after generating a plan — always present it first and wait for confirmation.",
                     parameters: {
                         type: SchemaType.OBJECT,
                         properties: {
@@ -232,7 +232,12 @@ export async function chatWithAgent(message: string, history: any[], contextText
        - Create plans based on ACTUAL content, not generic topics
     2. Work WITH them, not FOR them
        - "How does this feel? Want to go faster or take it easy?"
-    3. When you've agreed on a plan, use the 'commit_study_plan' tool to save it
+    3. PLAN CONFIRMATION FLOW (Critical!):
+       a. ALWAYS present the plan as a readable summary FIRST (list each mission with date and topic)
+       b. Ask: "Does this look good? Want to adjust anything before I lock it in?"
+       c. ONLY call 'commit_study_plan' AFTER the user explicitly confirms (e.g. says "yes", "looks good", "lock it in")
+       d. If they ask to adjust, show the UPDATED plan and ask for confirmation again
+       e. NEVER auto-commit without user approval — this is a hard rule
     ` : `
     1. NO MATERIALS YET - Important!
        - The user hasn't uploaded any study materials, or they're still being processed
