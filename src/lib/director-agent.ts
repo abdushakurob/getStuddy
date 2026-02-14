@@ -274,32 +274,44 @@ export async function sendCompanionMessage(
             };
         }
 
+        // Extract text directly from response parts instead of response.text()
+        // because the SDK's getText() returns "" when functionCall parts exist,
+        // silently dropping any text the model generated alongside tool calls.
         let text = "";
         try {
-            text = response.text();
+            const candidateParts = response.candidates?.[0]?.content?.parts || [];
+            const textParts: string[] = [];
+            for (const part of candidateParts) {
+                if (part.text) {
+                    textParts.push(part.text);
+                }
+            }
+            text = textParts.join("");
         } catch (e) {
-            console.error("Error getting text (likely function-call-only response):", e);
-            // If we have function calls, generate contextual text from them
-            let functionCalls: any[] = [];
-            try { functionCalls = response.functionCalls() || []; } catch (_) { }
+            console.error("Error extracting text from response parts:", e);
+        }
 
-            if (functionCalls.length > 0) {
-                const parts: string[] = [];
-                for (const fc of functionCalls) {
+        // Fallback: if no text was found but we have function calls,
+        // generate a contextual message from the tool call arguments
+        if (!text.trim()) {
+            let fCalls: any[] = [];
+            try { fCalls = response.functionCalls() || []; } catch (_) { }
+
+            if (fCalls.length > 0) {
+                const fallbackParts: string[] = [];
+                for (const fc of fCalls) {
                     if (fc.name === 'navigate_resource') {
                         const page = fc.args?.page;
                         const ts = fc.args?.timestamp;
                         const ctx = fc.args?.context || fc.args?.concept || '';
-                        parts.push(`Let me take you to ${page ? `Page ${page}` : ts || 'the relevant section'}${ctx ? ` — ${ctx}` : ''}.`);
+                        fallbackParts.push(`Let me take you to ${page ? `Page ${page}` : ts || 'the relevant section'}${ctx ? ` — ${ctx}` : ''}.`);
                     } else if (fc.name === 'update_milestone') {
-                        parts.push(`${fc.args?.status === 'completed' ? '✅ Completed' : '▶️ Starting'}: **${fc.args?.label}**`);
+                        fallbackParts.push(`${fc.args?.status === 'completed' ? '✅ Completed' : '▶️ Starting'}: **${fc.args?.label}**`);
                     } else if (fc.name === 'park_topic') {
-                        parts.push(`📌 Parked for later: **${fc.args?.topic}**`);
+                        fallbackParts.push(`📌 Parked for later: **${fc.args?.topic}**`);
                     }
                 }
-                text = parts.length > 0 ? parts.join('\n\n') : "Let me show you something relevant...";
-            } else {
-                text = "I couldn't generate a text response.";
+                text = fallbackParts.length > 0 ? fallbackParts.join('\n\n') : "Let me show you something relevant...";
             }
         }
 
