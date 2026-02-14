@@ -150,6 +150,7 @@ export default function AgentCanvas({
             // Handle navigation commands from companion
             if (response.navigationCommands && response.navigationCommands.length > 0) {
                 for (const nav of response.navigationCommands) {
+                    if (!nav) continue;
                     // Switch resource if needed (Must find object first)
                     if (nav.resourceId) {
                         const targetRes = availableResources.find(r => r._id === nav.resourceId || r._id?.toString() === nav.resourceId);
@@ -249,14 +250,14 @@ export default function AgentCanvas({
             if (response.navigationCommands && response.navigationCommands.length > 0) {
                 for (const nav of response.navigationCommands) {
                     // Switch resource if needed
-                    if (nav.resourceId) {
+                    if (nav?.resourceId) {
                         switchResource(nav.resourceId);
                     }
 
-                    if (nav.page) {
+                    if (nav?.page) {
                         jumpToLabel(nav.page.toString());
                         setNavigationHint(`Showing page ${nav.page}: ${nav.context}`);
-                    } else if (nav.timestamp) {
+                    } else if (nav?.timestamp) {
                         const parts = nav.timestamp.split(':').map(Number);
                         let seconds = 0;
                         if (parts.length === 3) {
