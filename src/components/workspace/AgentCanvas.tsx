@@ -25,6 +25,9 @@ import { useResource } from '@/context/ResourceContext';
 import PlanAdjustmentCard from './PlanAdjustmentCard';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 interface TranscriptItem {
     role: 'user' | 'assistant' | 'system';
@@ -384,7 +387,8 @@ export default function AgentCanvas({
                             </div>
                             <div className="flex-1 prose prose-sm max-w-none prose-p:text-gray-700 prose-headings:text-gray-900 prose-strong:text-[#4C8233] prose-a:text-blue-600 prose-a:font-bold prose-a:no-underline hover:prose-a:underline">
                                 <ReactMarkdown
-                                    remarkPlugins={[remarkGfm]}
+                                    remarkPlugins={[remarkGfm, remarkMath]}
+                                    rehypePlugins={[rehypeKatex]}
                                     urlTransform={(value) => value}
                                     components={{
                                         a: ({ node, href, children, ...props }) => {
