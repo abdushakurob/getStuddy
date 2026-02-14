@@ -286,6 +286,89 @@ export async function retryResourceAnalysis(resourceId: string) {
     return { success: true, message: 'Analysis started' };
 }
 
+// Re-analyze a resource to rebuild its learning map (works on already-analyzed resources)
+export async function remapResource(resourceId: string) {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error('Unauthorized');
+
+    await dbConnect();
+
+    const resource = await Resource.findOne({
+        _id: resourceId,
+        userId: session.user.id
+    });
+
+    if (!resource) throw new Error('Resource not found');
+    if (!resource.fileUrl) throw new Error('No file URL found for this resource');
+
+    // Mark as processing temporarily
+    resource.status = 'processing';
+    await resource.save();
+
+    // Re-analyze in background
+    (async () => {
+        try {
+            const { analyzeDocument, analyzeYouTubeVideo } = await import('@/lib/gemini');
+
+            let analysis: any;
+
+            if (resource.type === 'video' || resource.documentType === 'video_lecture' || resource.fileUrl.includes('youtube.com') || resource.fileUrl.includes('youtu.be')) {
+                console.log(`[Remap] Re-analyzing YouTube Video: ${resource.fileUrl}`);
+                analysis = await analyzeYouTubeVideo(resource.fileUrl);
+            } else {
+                const mimeTypeMap: Record<string, string> = {
+                    'pdf': 'application/pdf',
+                    'image': 'image/jpeg',
+                    'video': 'video/mp4',
+                    'audio': 'audio/mpeg',
+                    'slide': 'application/pdf',
+                    'note': 'application/pdf',
+                    'video_lecture': 'video/mp4'
+                };
+                const mimeType = mimeTypeMap[resource.type] || 'application/pdf';
+
+                console.log(`[Remap] Re-analyzing Document: ${resource.fileUrl} (${mimeType})`);
+                analysis = await analyzeDocument(resource.fileUrl, mimeType);
+            }
+
+            if (analysis) {
+                const resourceToUpdate = await Resource.findById(resource._id);
+                if (resourceToUpdate) {
+                    resourceToUpdate.knowledgeBase = analysis.distilled_content || analysis.summary;
+                    resourceToUpdate.summary = analysis.summary;
+                    resourceToUpdate.learningMap = analysis.learning_map;
+                    resourceToUpdate.suggestedOrder = analysis.suggested_order;
+                    resourceToUpdate.totalConcepts = analysis.total_concepts;
+                    if (analysis.document_type) {
+                        resourceToUpdate.documentType = analysis.document_type;
+                    }
+                    resourceToUpdate.status = 'ready';
+                    resourceToUpdate.errorMessage = undefined;
+                    await resourceToUpdate.save();
+                    console.log(`[Remap] Successfully re-analyzed resource ${resourceId}`);
+                }
+            } else {
+                const resourceToUpdate = await Resource.findById(resource._id);
+                if (resourceToUpdate) {
+                    resourceToUpdate.status = 'ready'; // Restore to ready even if remap fails
+                    resourceToUpdate.errorMessage = 'Re-analysis returned empty result';
+                    await resourceToUpdate.save();
+                }
+            }
+        } catch (e: any) {
+            console.error(`[Remap] Failed for ${resourceId}:`, e);
+            const resourceToUpdate = await Resource.findById(resource._id);
+            if (resourceToUpdate) {
+                resourceToUpdate.status = 'ready'; // Restore — don't break existing resource
+                resourceToUpdate.errorMessage = `Remap failed: ${e?.message}`;
+                await resourceToUpdate.save();
+            }
+        }
+    })();
+
+    return { success: true, message: 'Re-analysis started. Page mapping will update shortly.' };
+}
+
 // Bulk Retry Action
 export async function retryAllFailedResources(courseId: string) {
     const session = await auth();

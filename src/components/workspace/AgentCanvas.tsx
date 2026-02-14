@@ -18,9 +18,11 @@ import {
     MessageSquare,
     Map as MapIcon,
     StickyNote,
-    Clock
+    Clock,
+    RefreshCw
 } from 'lucide-react';
 import { sendMessageToDirector, handleActionIntent } from '@/lib/actions-director';
+import { remapResource } from '@/lib/actions-course';
 import { useResource } from '@/context/ResourceContext';
 import PlanAdjustmentCard from './PlanAdjustmentCard';
 import ReactMarkdown from 'react-markdown';
@@ -86,6 +88,7 @@ export default function AgentCanvas({
     const [companionStatus, setCompanionStatus] = useState<string>("Ready when you are");
     const [progress, setProgress] = useState<SessionProgress>(initialProgress);
     const [navigationHint, setNavigationHint] = useState<string | null>(null);
+    const [isRemapping, setIsRemapping] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     // Get resource controls for navigation
@@ -825,8 +828,34 @@ export default function AgentCanvas({
                     </button>
                 </div>
                 {/* Status */}
-                <div className="mt-2 text-center flex items-center justify-center gap-2">
+                <div className="mt-2 text-center flex items-center justify-center gap-3">
                     <p className="text-[10px] text-gray-400 font-medium">{companionStatus}</p>
+                    {currentResource && (
+                        <button
+                            onClick={async () => {
+                                if (isRemapping) return;
+                                setIsRemapping(true);
+                                setCompanionStatus('Re-analyzing pages...');
+                                try {
+                                    const resId = (currentResource as any)._id?.toString() || (currentResource as any).id;
+                                    const result = await remapResource(resId);
+                                    setCompanionStatus(result.message || 'Remapping started!');
+                                } catch (err: any) {
+                                    setCompanionStatus(`Remap failed: ${err.message}`);
+                                } finally {
+                                    setTimeout(() => {
+                                        setIsRemapping(false);
+                                        setCompanionStatus("I'm here if you need me");
+                                    }, 5000);
+                                }
+                            }}
+                            disabled={isRemapping}
+                            className="text-[10px] text-gray-400 hover:text-[#4C8233] font-medium transition-colors flex items-center gap-1 disabled:opacity-50"
+                        >
+                            <RefreshCw size={10} className={isRemapping ? 'animate-spin' : ''} />
+                            {isRemapping ? 'Remapping...' : 'Wrong pages? Remap'}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
