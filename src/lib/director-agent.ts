@@ -274,56 +274,76 @@ export async function sendCompanionMessage(
             };
         }
 
-        // Extract text directly from response parts instead of response.text()
-        // because the SDK's getText() returns "" when functionCall parts exist,
-        // silently dropping any text the model generated alongside tool calls.
+        // Extract text from response parts
         let text = "";
-        try {
-            const candidateParts = response.candidates?.[0]?.content?.parts || [];
-            const textParts: string[] = [];
-            for (const part of candidateParts) {
-                if (part.text) {
-                    textParts.push(part.text);
-                }
-            }
-            text = textParts.join("");
-        } catch (e) {
-            console.error("Error extracting text from response parts:", e);
-        }
-
-        // Fallback: if no text was found but we have function calls,
-        // generate a contextual message from the tool call arguments
-        if (!text.trim()) {
-            let fCalls: any[] = [];
-            try { fCalls = response.functionCalls() || []; } catch (_) { }
-
-            if (fCalls.length > 0) {
-                const fallbackParts: string[] = [];
-                for (const fc of fCalls) {
-                    if (fc.name === 'navigate_resource') {
-                        const page = fc.args?.page;
-                        const ts = fc.args?.timestamp;
-                        const ctx = fc.args?.context || fc.args?.concept || '';
-                        fallbackParts.push(`Let me take you to ${page ? `Page ${page}` : ts || 'the relevant section'}${ctx ? ` — ${ctx}` : ''}.`);
-                    } else if (fc.name === 'update_milestone') {
-                        fallbackParts.push(`${fc.args?.status === 'completed' ? '✅ Completed' : '▶️ Starting'}: **${fc.args?.label}**`);
-                    } else if (fc.name === 'park_topic') {
-                        fallbackParts.push(`📌 Parked for later: **${fc.args?.topic}**`);
-                    }
-                }
-                text = fallbackParts.length > 0 ? fallbackParts.join('\n\n') : "Let me show you something relevant...";
-            }
+        const candidateParts = response.candidates?.[0]?.content?.parts || [];
+        for (const part of candidateParts) {
+            if (part.text) text += part.text;
         }
 
         // Extract tool calls
-        let functionCalls = [];
+        let functionCalls: any[] = [];
         try {
-            functionCalls = response.functionCalls();
+            functionCalls = response.functionCalls() || [];
         } catch (e) {
-            // functionCalls() might throw if no function call exists or if malformed
-            // but usually it just returns undefined if none.
-            // If malformed, we ignore tools.
             console.log("No tool calls or error parsing them:", e);
+        }
+
+        // Multi-turn function calling: if the model returned function calls
+        // but no text, send the function results back to get a text response.
+        // This is the standard Gemini function calling flow.
+        if (!text.trim() && functionCalls.length > 0) {
+            console.log("[Companion] Model returned function calls without text, sending results back for follow-up...");
+
+            // Build function response parts to send back
+            const functionResponseParts = functionCalls.map((fc: any) => ({
+                functionResponse: {
+                    name: fc.name,
+                    response: { success: true, result: `Tool ${fc.name} executed successfully.` }
+                }
+            }));
+
+            try {
+                // Send function results back — model will generate its text response
+                const followUpResult = await chat.sendMessage(functionResponseParts);
+                const followUpResponse = followUpResult.response;
+
+                // Extract text from the follow-up
+                const followUpParts = followUpResponse.candidates?.[0]?.content?.parts || [];
+                for (const part of followUpParts) {
+                    if (part.text) text += part.text;
+                }
+
+                // Check if the follow-up also has function calls (chain them)
+                try {
+                    const moreCalls = followUpResponse.functionCalls() || [];
+                    if (moreCalls.length > 0) {
+                        functionCalls = [...functionCalls, ...moreCalls];
+                    }
+                } catch (_) { }
+
+            } catch (followUpError) {
+                console.error("[Companion] Follow-up after function calls failed:", followUpError);
+            }
+        }
+
+        // Final fallback: if still no text after the multi-turn loop,
+        // generate a contextual message from the tool call arguments
+        if (!text.trim() && functionCalls.length > 0) {
+            const fallbackParts: string[] = [];
+            for (const fc of functionCalls) {
+                if (fc.name === 'navigate_resource') {
+                    const page = fc.args?.page;
+                    const ts = fc.args?.timestamp;
+                    const ctx = fc.args?.context || fc.args?.concept || '';
+                    fallbackParts.push(`Let me take you to ${page ? `Page ${page}` : ts || 'the relevant section'}${ctx ? ` — ${ctx}` : ''}.`);
+                } else if (fc.name === 'update_milestone') {
+                    fallbackParts.push(`${fc.args?.status === 'completed' ? '✅ Completed' : '▶️ Starting'}: **${fc.args?.label}**`);
+                } else if (fc.name === 'park_topic') {
+                    fallbackParts.push(`📌 Parked for later: **${fc.args?.topic}**`);
+                }
+            }
+            text = fallbackParts.length > 0 ? fallbackParts.join('\n\n') : "Let me show you something relevant...";
         }
 
         return {
