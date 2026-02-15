@@ -59,12 +59,30 @@ const model = genAI.getGenerativeModel({
 
 console.log(`[Planning Agent] Using model: ${AI_MODEL}`);
 
-// Helper to fetch and convert URL to Base64
+// Helper to fetch and convert URL to Base64 with Retries
 async function urlToGenerativePart(url: string, mimeType: string) {
-    const response = await fetch(url);
-    if (!response.ok) {
-        throw new Error(`Failed to fetch file: ${response.statusText}`);
+    let response: Response | null = null;
+    let lastError: any = null;
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            console.log(`[Gemini Core] Fetching file (Attempt ${attempt}): ${url}`);
+            response = await fetch(url, {
+                headers: { 'User-Agent': 'Mozilla/5.0 (StuddyBot/1.0)' }
+            });
+            if (response.ok) break;
+        } catch (fetchErr) {
+            lastError = fetchErr;
+            console.warn(`[Gemini Core] Fetch attempt ${attempt} failed:`, fetchErr);
+            if (attempt === 3) throw fetchErr;
+            await new Promise(r => setTimeout(r, 1000 * attempt));
+        }
     }
+
+    if (!response || !response.ok) {
+        throw new Error(`Failed to fetch file after retries: ${response?.statusText || lastError?.message}`);
+    }
+
     const buffer = await response.arrayBuffer();
     return {
         inlineData: {

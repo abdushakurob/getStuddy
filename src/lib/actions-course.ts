@@ -205,11 +205,12 @@ export async function retryResourceAnalysis(resourceId: string) {
     if (!resource) throw new Error('Resource not found');
     if (resource.status === 'ready') return { success: true, message: 'Already analyzed' };
 
-    // Reset to processing immediately
-    resource.status = 'processing';
-    resource.errorMessage = undefined;
-    resource.retryCount = (resource.retryCount || 0) + 1;
-    await resource.save();
+    // Reset to processing immediately - Using atomic update to avoid VersionError
+    await Resource.findByIdAndUpdate(resource._id, {
+        $set: { status: 'processing' },
+        $unset: { errorMessage: 1 },
+        $inc: { retryCount: 1 }
+    });
 
     revalidatePath(`/dashboard/courses`); // Immediate UI update
 
@@ -293,9 +294,10 @@ export async function remapResource(resourceId: string) {
     if (!resource) throw new Error('Resource not found');
     if (!resource.fileUrl) throw new Error('No file URL found for this resource');
 
-    // Mark as processing temporarily
-    resource.status = 'processing';
-    await resource.save();
+    // Mark as processing temporarily - Using atomic update to avoid VersionError
+    await Resource.findByIdAndUpdate(resource._id, {
+        $set: { status: 'processing' }
+    });
 
     // Re-analyze in background
     (async () => {
