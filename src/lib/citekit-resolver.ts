@@ -107,10 +107,14 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
         const exactMatch = mapToUse.nodes.find((n: any) => n.id === nodeId);
 
         if (!exactMatch) {
+            // Noise Cleaning: Strip [PDF Page ...] prefix if Agent sent the display string
+            const cleanQuery = nodeId.replace(/\[PDF Page.*?\]\s*/gi, '').trim().toLowerCase();
+            console.log(`[CiteKit] Fuzzy Search Query: '${cleanQuery}' (Original: '${nodeId}')`);
+
             // Try lenient case-insensitive match on Label
             const fuzzyMatch = mapToUse.nodes.find((n: any) =>
-                (n.label && n.label.toLowerCase().includes(nodeId.toLowerCase())) ||
-                (n.title && n.title.toLowerCase().includes(nodeId.toLowerCase()))
+                (n.label && n.label.toLowerCase().includes(cleanQuery)) ||
+                (n.title && n.title.toLowerCase().includes(cleanQuery))
             );
 
             if (fuzzyMatch) {
