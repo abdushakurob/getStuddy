@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { v4 as uuidv4 } from 'uuid';
-import { CiteKitClient } from 'citekit';
+// import { CiteKitClient } from 'citekit'; // Removed for Vercel build fix (DOMMatrix issue)
 
 // Separate model for document analysis (no tools, JSON output)
 const analysisModel = genAI.getGenerativeModel({
@@ -95,6 +95,7 @@ export async function analyzeDocument(fileUrl: string, mimeType: string = "appli
             const buffer = await response.arrayBuffer();
             fs.writeFileSync(tempFilePath, Buffer.from(buffer));
 
+            const { CiteKitClient } = await import('citekit');
             const client = new CiteKitClient({
                 storageDir: storageDir,
                 apiKey: process.env.GEMINI_API_KEY

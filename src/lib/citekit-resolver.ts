@@ -1,4 +1,4 @@
-import { CiteKitClient } from "citekit";
+// import { CiteKitClient } from "citekit"; // Removed for Vercel build fix (DOMMatrix issue)
 import { UTApi } from "uploadthing/server";
 import dbConnect from "./db";
 import Resource from "@/models/Resource";
@@ -54,6 +54,7 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
 
     try {
         // Initialize CiteKit Client
+        const { CiteKitClient } = await import('citekit');
         const client = new CiteKitClient({
             storageDir: mapsDir,
             outputDir: outputDir,
