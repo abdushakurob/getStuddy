@@ -8,16 +8,19 @@ import { revalidatePath } from 'next/cache';
 import { findNodeByPage, resolveResourceNode } from '@/lib/citekit-resolver';
 
 // Helper to fetch evidence from UploadThing and convert to Base64 (Essential for Gemini Multimodal)
-async function fetchAsBase64(url: string): Promise<string> {
+// Helper to fetch evidence from UploadThing (Essential for Gemini Multimodal)
+async function fetchEvidenceBuffer(url: string): Promise<{ buffer: Buffer, mimeType: string }> {
     try {
         const response = await fetch(url, {
             headers: { 'User-Agent': 'Mozilla/5.0 (StuddyBot/1.0)' }
         });
         if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
-        const buffer = await response.arrayBuffer();
-        return Buffer.from(buffer).toString('base64');
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const mimeType = url.includes('.mp4') ? 'video/mp4' : (url.includes('.png') ? 'image/png' : 'application/pdf');
+        return { buffer, mimeType };
     } catch (e) {
-        console.error("[fetchAsBase64] Error:", e);
+        console.error("[fetchEvidence] Error:", e);
         throw e;
     }
 }
@@ -334,17 +337,38 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
     // Also inject the most recent evidence into the CURRENT message parts
     const currentMessageParts: any[] = [{ text: userMessage }];
 
-    // FETCH STICKY EVIDENCE
+    // FETCH STICKY EVIDENCE (Hybrid Injection)
     if (studySession.activeGroundingUrl) {
         try {
             console.log(`[CiteKit Sticky] Attaching evidence: ${studySession.activeGroundingNodeId}`);
-            const base64Data = await fetchAsBase64(studySession.activeGroundingUrl);
-            currentMessageParts.push({
-                inlineData: {
-                    data: base64Data,
-                    mimeType: "application/pdf"
-                }
-            });
+
+            // 1. Fetch Buffer
+            const { buffer, mimeType } = await fetchEvidenceBuffer(studySession.activeGroundingUrl);
+            const sizeMB = buffer.length / (1024 * 1024);
+
+            // 2. Hybrid Logic
+            if (sizeMB > 3.0) {
+                // Large File -> Upload to Gemini File API
+                console.log(`[CiteKit Hybrid] Evidence is large (${sizeMB.toFixed(2)}MB). Uploading to Gemini...`);
+                const { uploadToGemini } = await import('./gemini');
+                const { fileUri, mimeType: uploadedMime } = await uploadToGemini(studySession.activeGroundingUrl, mimeType);
+
+                currentMessageParts.push({
+                    fileData: {
+                        fileUri: fileUri,
+                        mimeType: uploadedMime
+                    }
+                });
+            } else {
+                // Small File -> Inline Base64 (Faster)
+                console.log(`[CiteKit Hybrid] Evidence is small (${sizeMB.toFixed(2)}MB). Using Inline Base64.`);
+                currentMessageParts.push({
+                    inlineData: {
+                        data: buffer.toString('base64'),
+                        mimeType
+                    }
+                });
+            }
         } catch (e) {
             console.error("[CiteKit Sticky] Failed to attach evidence:", e);
         }

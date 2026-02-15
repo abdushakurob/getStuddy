@@ -1,4 +1,5 @@
 import { SchemaType } from "@google/generative-ai";
+import { GoogleAIFileManager } from "@google/generative-ai/server";
 import { genAI, AI_MODEL } from "./ai-config";
 import * as fs from 'fs';
 import * as path from 'path';
@@ -91,6 +92,41 @@ async function urlToGenerativePart(url: string, mimeType: string) {
             mimeType
         },
     };
+}
+
+// Helper to upload file to Gemini File API (for large files > 4MB)
+// Returns the fileUri and mimeType for use in fileData
+export async function uploadToGemini(url: string, mimeType: string) {
+    const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY || "");
+
+    // 1. Download to temp
+    const tempPath = path.join(os.tmpdir(), `gemini_upload_${uuidv4()}.tmp`);
+
+    try {
+        const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (StuddyBot/1.0)' } });
+        if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
+        const buffer = await response.arrayBuffer();
+        fs.writeFileSync(tempPath, Buffer.from(buffer));
+
+        // 2. Upload to Gemini
+        console.log(`[Gemini Upload] Uploading to File API: ${url}`);
+        const uploadResponse = await fileManager.uploadFile(tempPath, {
+            mimeType,
+            displayName: "Studdy Evidence"
+        });
+
+        console.log(`[Gemini Upload] Success: ${uploadResponse.file.uri}`);
+        return {
+            fileUri: uploadResponse.file.uri,
+            mimeType: uploadResponse.file.mimeType
+        };
+    } catch (e) {
+        console.error("[Gemini Upload] Failed:", e);
+        throw e;
+    } finally {
+        // Cleanup temp
+        try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch (_) { }
+    }
 }
 
 // CiteKit-integrated wrapper

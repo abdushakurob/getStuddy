@@ -180,8 +180,9 @@ export function initializeCompanion(context: any) {
     `;
 
     // Add new tools to the toolset
+    // Add new tools to the toolset
     const agentTools = [
-        ...tools.filter(t => t.name !== 'navigate_resource'), // Remove old to replace
+        ...tools, // Includes navigate_resource, ground_concept, clear_grounding
         {
             name: "run_code",
             description: "Executes Python code and returns the output to the user. Use this to demonstrate concepts live.",
@@ -191,40 +192,6 @@ export function initializeCompanion(context: any) {
                     code: { type: SchemaType.STRING, description: "The Python code to execute" }
                 },
                 required: ["code"]
-            }
-        },
-        {
-            name: "navigate_resource",
-            description: "Navigates the user's view to a specific page or location. PURELY UI SCROLLING. Does NOT fetch new evidence for you to see. Use 'ground_concept' if you need to SEE the content.",
-            parameters: {
-                type: SchemaType.OBJECT,
-                properties: {
-                    page: { type: SchemaType.NUMBER, description: "Page number to scroll to." },
-                    timestamp: { type: SchemaType.STRING, description: "Timestamp for Video/Audio." },
-                    resource_id: { type: SchemaType.STRING, description: "ID of the resource to switch to." }
-                },
-                required: ["page"]
-            }
-        },
-        {
-            name: "ground_concept",
-            description: "Fetches and PINS physical evidence (PDF slices, video frames) for a specific concept/node. Once called, you will SEE this evidence in every future turn until you clear it. Call this when starting a new sub-topic.",
-            parameters: {
-                type: SchemaType.OBJECT,
-                properties: {
-                    node_id: { type: SchemaType.STRING, description: "The exact CiteKit Node ID from the Map. REQUIRED." },
-                    resource_id: { type: SchemaType.STRING, description: "ID of the resource." },
-                    context: { type: SchemaType.STRING, description: "Reason for grounding (e.g. 'Analyzing Example 1.3')" }
-                },
-                required: ["node_id", "context"]
-            }
-        },
-        {
-            name: "clear_grounding",
-            description: "Clears the currently pinned visual evidence. Call this when moving to a completely new topic where the old evidence is distracting.",
-            parameters: {
-                type: SchemaType.OBJECT,
-                properties: {},
             }
         },
         // --- Agentic Tools ---
