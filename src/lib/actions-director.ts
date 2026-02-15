@@ -60,8 +60,15 @@ async function handleToolCall(toolCall: any, sessionId: string) {
                         }
                     });
                 }
-            } catch (e) {
+            } catch (e: any) {
                 console.error("[ground_concept] Failed:", e);
+                if (e.message === 'NO_MAP_AVAILABLE') {
+                    return {
+                        type: 'error',
+                        code: 'NO_MAP',
+                        message: "Visual grounding unavailable: This resource lacks a CiteKit map. You cannot 'see' slices of this file. Use the text content in your Master Page Index instead."
+                    };
+                }
             }
 
             return {

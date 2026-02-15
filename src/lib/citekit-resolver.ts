@@ -59,21 +59,67 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
         });
 
         // CiteKit needs the map to be in its internal storage to resolve nodes.
-        // We ensure it's there before resolving.
-        // The default storage for maps in v0.1.3 is [baseDir]/.resource_maps
         const mapsDir = path.join(baseDir, ".resource_maps");
         if (!fs.existsSync(mapsDir)) fs.mkdirSync(mapsDir, { recursive: true });
 
-        if (resource.citeKitMap) {
-            const mapPath = path.join(mapsDir, `${resourceId}.json`);
-            fs.writeFileSync(mapPath, JSON.stringify(resource.citeKitMap));
+        // AUTO-HEALING: If Map is missing, generate it NOW.
+        let mapToUse = resource.citeKitMap;
+
+        if (!mapToUse) {
+            console.log(`[CiteKit] AUTO-MAP: Resource ${resourceId} has no map. Generating on the fly...`);
+            const ckType = resource.type === 'video' ? 'video' : (resource.type === 'image' ? 'image' : 'document');
+
+            // Ingest to generate map with Retries
+            let ingestSuccess = false;
+            for (let i = 1; i <= 3; i++) {
+                try {
+                    console.log(`[CiteKit] Auto-Ingest Attempt ${i}...`);
+                    await client.ingest(sourcePath, ckType, { resourceId });
+                    ingestSuccess = true;
+                    break;
+                } catch (ingestErr) {
+                    console.warn(`[CiteKit] Auto-Ingest Attempt ${i} failed:`, ingestErr);
+                    if (i < 3) await new Promise(r => setTimeout(r, 1000 * i)); // Backoff
+                }
+            }
+
+            if (!ingestSuccess) throw new Error("Auto-Ingest Failed after 3 attempts");
+
+            mapToUse = client.getMap(resourceId);
+
+            // Save to DB for future speed
+            await Resource.findByIdAndUpdate(resourceId, { citeKitMap: mapToUse });
+            console.log(`[CiteKit] Map generated and saved: ${mapToUse.nodes?.length || 0} nodes`);
         } else {
-            throw new Error("Resource has no CiteKit map.");
+            // Just write the existing map to disk for CiteKit to use
+            const mapPath = path.join(mapsDir, `${resourceId}.json`);
+            fs.writeFileSync(mapPath, JSON.stringify(mapToUse));
+        }
+
+        // FUZZY MATCHING: Handle "Gaussian" vs "UUID"
+        let targetNodeId = nodeId;
+        const exactMatch = mapToUse.nodes.find((n: any) => n.id === nodeId);
+
+        if (!exactMatch) {
+            // Try lenient case-insensitive match on Label
+            const fuzzyMatch = mapToUse.nodes.find((n: any) =>
+                n.label.toLowerCase().includes(nodeId.toLowerCase()) ||
+                n.title?.toLowerCase().includes(nodeId.toLowerCase())
+            );
+
+            if (fuzzyMatch) {
+                console.log(`[CiteKit] Fuzzy Match: '${nodeId}' -> '${fuzzyMatch.label}' (${fuzzyMatch.id})`);
+                targetNodeId = fuzzyMatch.id;
+            } else {
+                console.warn(`[CiteKit] Node '${nodeId}' not found in map (Exact or Fuzzy). Defaulting to first node.`);
+                // Fallback to first node if completely lost, better than crashing
+                if (mapToUse.nodes.length > 0) targetNodeId = mapToUse.nodes[0].id;
+            }
         }
 
         // Perform Resolution
-        console.log(`[CiteKit] Slicing node ${nodeId} (${resource.type})...`);
-        const evidence = await client.resolve(resourceId, nodeId);
+        console.log(`[CiteKit] Slicing node ${targetNodeId} (${resource.type})...`);
+        const evidence = await client.resolve(resourceId, targetNodeId);
 
         // Detect MimeType for Upload
         const resultMimeType = resource.type === 'video' ? 'video/mp4' :
