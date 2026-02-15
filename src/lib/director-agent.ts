@@ -177,6 +177,7 @@ export function initializeCompanion(context: any) {
             }
         },
         {
+            name: "navigate_resource",
             description: "Navigates the user's view to a specific page or location in a resource. Use this to grounding explanations.",
             parameters: {
                 type: SchemaType.OBJECT,
