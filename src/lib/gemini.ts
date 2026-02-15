@@ -91,11 +91,24 @@ export async function analyzeDocument(fileUrl: string, mimeType: string = "appli
         const ext = (mimeType === 'application/pdf' || mimeType.includes('pdf')) ? '.pdf' : '.bin';
         const tempFilePath = path.join(tempDir, `${tempId}${ext}`);
 
-        console.log(`[CiteKit] Fetching resource...`);
-        const response = await fetch(fileUrl);
-        console.log(`[CiteKit] Fetch Status: ${response.status} ${response.statusText}`);
+        // RESILIENT FETCH with Retries and User-Agent
+        let response: Response | null = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                console.log(`[CiteKit] Fetching resource (Attempt ${attempt})...`);
+                response = await fetch(fileUrl, {
+                    headers: { 'User-Agent': 'Mozilla/5.0 (StuddyBot/1.0)' }
+                });
+                if (response.ok) break;
+            } catch (fetchErr) {
+                console.warn(`[CiteKit] Fetch attempt ${attempt} failed:`, fetchErr);
+                if (attempt === 3) throw fetchErr;
+                await new Promise(r => setTimeout(r, 1000 * attempt));
+            }
+        }
 
-        if (response.ok) {
+        if (response && response.ok) {
+            console.log(`[CiteKit] Fetch Status: ${response.status} ${response.statusText}`);
             const buffer = await response.arrayBuffer();
             fs.writeFileSync(tempFilePath, Buffer.from(buffer));
             console.log(`[CiteKit] File saved to temp: ${tempFilePath} (${buffer.byteLength} bytes)`);
@@ -125,10 +138,10 @@ export async function analyzeDocument(fileUrl: string, mimeType: string = "appli
 
             try { fs.unlinkSync(tempFilePath); } catch (_) { }
         } else {
-            console.warn(`[CiteKit] Fetch failed: ${response.status} ${response.statusText}`);
+            console.warn(`[CiteKit] Fetch failed permanently: ${response?.status} ${response?.statusText}`);
         }
     } catch (e) {
-        console.error("[CiteKit] Ingestion failed (Double-armour mode):", e);
+        console.error("[CiteKit] CRITICAL FAILURE during ingestion block:", e);
     }
 
     // 2. Standard Gemini Analysis (The high-level semantic summary)

@@ -243,44 +243,35 @@ export async function retryResourceAnalysis(resourceId: string) {
             }
 
             if (analysis) {
-                // Update resource with results
-                const resourceToUpdate = await Resource.findById(resource._id);
-                if (resourceToUpdate) {
-                    resourceToUpdate.knowledgeBase = analysis.distilled_content || analysis.summary;
-                    resourceToUpdate.summary = analysis.summary;
-                    resourceToUpdate.learningMap = analysis.learning_map;
-                    resourceToUpdate.citeKitMap = analysis.citeKitMap; // Add this
-                    resourceToUpdate.suggestedOrder = analysis.suggested_order;
-                    resourceToUpdate.totalConcepts = analysis.total_concepts;
-                    // Only update type if it was missing or generic
-                    if (analysis.document_type) {
-                        resourceToUpdate.documentType = analysis.document_type;
-                    }
-                    resourceToUpdate.status = 'ready';
-                    resourceToUpdate.errorMessage = undefined;
-                    await resourceToUpdate.save();
-                }
+                // Atomic Update to avoid VersionError
+                const updated = await Resource.findByIdAndUpdate(resource._id, {
+                    $set: {
+                        knowledgeBase: analysis.distilled_content || analysis.summary,
+                        summary: analysis.summary,
+                        learningMap: analysis.learning_map,
+                        citeKitMap: analysis.citeKitMap,
+                        suggestedOrder: analysis.suggested_order,
+                        totalConcepts: analysis.total_concepts,
+                        documentType: analysis.document_type || resource.documentType,
+                        status: 'ready'
+                    },
+                    $unset: { errorMessage: 1 }
+                }, { new: true });
+                console.log(`[Retry] Successfully updated resource ${resourceId}`);
             } else {
-                const resourceToUpdate = await Resource.findById(resource._id);
-                if (resourceToUpdate) {
-                    resourceToUpdate.status = 'error';
-                    resourceToUpdate.errorMessage = 'AI analysis returned empty result';
-                    await resourceToUpdate.save();
-                }
+                await Resource.findByIdAndUpdate(resource._id, {
+                    $set: { status: 'error', errorMessage: 'AI analysis returned empty result' }
+                });
             }
         } catch (e: any) {
             console.error(`Background Retry Failed for ${resourceId}:`, e);
-            const resourceToUpdate = await Resource.findById(resource._id);
-            if (resourceToUpdate) {
-                resourceToUpdate.status = 'error';
-                // Timeout handling
-                if (e.message?.includes('timeout') || e.name === 'AbortError') {
-                    resourceToUpdate.errorMessage = 'Analysis timed out (10m limit).';
-                } else {
-                    resourceToUpdate.errorMessage = e?.message || 'Analysis failed';
-                }
-                await resourceToUpdate.save();
-            }
+            const errorMessage = (e.message?.includes('timeout') || e.name === 'AbortError')
+                ? 'Analysis timed out (10m limit).'
+                : (e?.message || 'Analysis failed');
+
+            await Resource.findByIdAndUpdate(resource._id, {
+                $set: { status: 'error', errorMessage }
+            });
         }
     })();
 
@@ -333,38 +324,30 @@ export async function remapResource(resourceId: string) {
             }
 
             if (analysis) {
-                const resourceToUpdate = await Resource.findById(resource._id);
-                if (resourceToUpdate) {
-                    resourceToUpdate.knowledgeBase = analysis.distilled_content || analysis.summary;
-                    resourceToUpdate.summary = analysis.summary;
-                    resourceToUpdate.learningMap = analysis.learning_map;
-                    resourceToUpdate.citeKitMap = analysis.citeKitMap; // Add this
-                    resourceToUpdate.suggestedOrder = analysis.suggested_order;
-                    resourceToUpdate.totalConcepts = analysis.total_concepts;
-                    if (analysis.document_type) {
-                        resourceToUpdate.documentType = analysis.document_type;
-                    }
-                    resourceToUpdate.status = 'ready';
-                    resourceToUpdate.errorMessage = undefined;
-                    await resourceToUpdate.save();
-                    console.log(`[Remap] Successfully re-analyzed resource ${resourceId}`);
-                }
+                await Resource.findByIdAndUpdate(resource._id, {
+                    $set: {
+                        knowledgeBase: analysis.distilled_content || analysis.summary,
+                        summary: analysis.summary,
+                        learningMap: analysis.learning_map,
+                        citeKitMap: analysis.citeKitMap,
+                        suggestedOrder: analysis.suggested_order,
+                        totalConcepts: analysis.total_concepts,
+                        documentType: analysis.document_type || resource.documentType,
+                        status: 'ready'
+                    },
+                    $unset: { errorMessage: 1 }
+                });
+                console.log(`[Remap] Successfully re-analyzed resource ${resourceId}`);
             } else {
-                const resourceToUpdate = await Resource.findById(resource._id);
-                if (resourceToUpdate) {
-                    resourceToUpdate.status = 'ready'; // Restore to ready even if remap fails
-                    resourceToUpdate.errorMessage = 'Re-analysis returned empty result';
-                    await resourceToUpdate.save();
-                }
+                await Resource.findByIdAndUpdate(resource._id, {
+                    $set: { status: 'ready', errorMessage: 'Re-analysis returned empty result' }
+                });
             }
         } catch (e: any) {
             console.error(`[Remap] Failed for ${resourceId}:`, e);
-            const resourceToUpdate = await Resource.findById(resource._id);
-            if (resourceToUpdate) {
-                resourceToUpdate.status = 'ready'; // Restore — don't break existing resource
-                resourceToUpdate.errorMessage = `Remap failed: ${e?.message}`;
-                await resourceToUpdate.save();
-            }
+            await Resource.findByIdAndUpdate(resource._id, {
+                $set: { status: 'ready', errorMessage: `Remap failed: ${e?.message}` }
+            });
         }
     })();
 
