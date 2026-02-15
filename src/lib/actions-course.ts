@@ -7,6 +7,7 @@ import Folder from '@/models/Folder';
 import Resource from '@/models/Resource';
 import StudyPlan from '@/models/StudyPlan';
 import { revalidatePath } from 'next/cache';
+import { waitUntil } from '@vercel/functions';
 import mongoose from 'mongoose';
 
 // --- Types ---
@@ -214,8 +215,8 @@ export async function retryResourceAnalysis(resourceId: string) {
 
     revalidatePath(`/dashboard/courses`); // Immediate UI update
 
-    // Trigger Analysis in Background (Fire and Forget)
-    (async () => {
+    // Trigger Analysis in Background with Vercel waitUntil to prevent early termination
+    waitUntil((async () => {
         try {
             const { analyzeDocument, analyzeYouTubeVideo } = await import('@/lib/gemini');
 
@@ -274,7 +275,7 @@ export async function retryResourceAnalysis(resourceId: string) {
                 $set: { status: 'error', errorMessage }
             });
         }
-    })();
+    })());
 
     return { success: true, message: 'Analysis started' };
 }
@@ -299,8 +300,8 @@ export async function remapResource(resourceId: string) {
         $set: { status: 'processing' }
     });
 
-    // Re-analyze in background
-    (async () => {
+    // Re-analyze in background with Vercel waitUntil protection
+    waitUntil((async () => {
         try {
             const { analyzeDocument, analyzeYouTubeVideo } = await import('@/lib/gemini');
 
@@ -351,7 +352,7 @@ export async function remapResource(resourceId: string) {
                 $set: { status: 'ready', errorMessage: `Remap failed: ${e?.message}` }
             });
         }
-    })();
+    })());
 
     return { success: true, message: 'Re-analysis started. Page mapping will update shortly.' };
 }
