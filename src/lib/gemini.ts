@@ -79,6 +79,7 @@ export async function analyzeDocument(fileUrl: string, mimeType: string = "appli
     let citeKitMap = null;
 
     // 1. Try CiteKit Ingestion (Deep structural mapping)
+    console.log(`[CiteKit] Starting ingestion block for ${fileUrl}`);
     try {
         const tempId = resourceId || uuidv4();
         const tempDir = path.join(os.tmpdir(), 'citekit_temp');
@@ -90,12 +91,19 @@ export async function analyzeDocument(fileUrl: string, mimeType: string = "appli
         const ext = (mimeType === 'application/pdf' || mimeType.includes('pdf')) ? '.pdf' : '.bin';
         const tempFilePath = path.join(tempDir, `${tempId}${ext}`);
 
+        console.log(`[CiteKit] Fetching resource...`);
         const response = await fetch(fileUrl);
+        console.log(`[CiteKit] Fetch Status: ${response.status} ${response.statusText}`);
+
         if (response.ok) {
             const buffer = await response.arrayBuffer();
             fs.writeFileSync(tempFilePath, Buffer.from(buffer));
+            console.log(`[CiteKit] File saved to temp: ${tempFilePath} (${buffer.byteLength} bytes)`);
 
+            console.log(`[CiteKit] Dynamically importing CiteKitClient...`);
             const { CiteKitClient } = await import('citekit');
+            console.log(`[CiteKit] CiteKitClient imported successfully.`);
+
             const client = new CiteKitClient({
                 storageDir: storageDir,
                 apiKey: process.env.GEMINI_API_KEY
@@ -111,12 +119,16 @@ export async function analyzeDocument(fileUrl: string, mimeType: string = "appli
             if (fs.existsSync(mapPath)) {
                 citeKitMap = JSON.parse(fs.readFileSync(mapPath, 'utf-8'));
                 console.log(`[CiteKit] Map generated: ${citeKitMap.nodes?.length || 0} nodes`);
+            } else {
+                console.warn(`[CiteKit] Map file not found at ${mapPath}`);
             }
 
             try { fs.unlinkSync(tempFilePath); } catch (_) { }
+        } else {
+            console.warn(`[CiteKit] Fetch failed: ${response.status} ${response.statusText}`);
         }
     } catch (e) {
-        console.error("[CiteKit] Ingestion failed (Double-armour mode: continuing with Gemini):", e);
+        console.error("[CiteKit] Ingestion failed (Double-armour mode):", e);
     }
 
     // 2. Standard Gemini Analysis (The high-level semantic summary)
