@@ -41,7 +41,8 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
     // Download original file
-    const ext = resource.fileUrl.split('.').pop() || 'pdf';
+    // SAFE EXTENSION LOGIC: Do not trust URL splitting for UploadThing URLs (which might not have extensions)
+    const ext = resource.type === 'video' ? 'mp4' : (resource.type === 'image' ? 'png' : 'pdf');
     const sourcePath = path.join(tempDir, `${resourceId}.${ext}`);
 
     console.log(`[CiteKit] Downloading source: ${resource.fileUrl}`);
