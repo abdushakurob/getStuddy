@@ -4,27 +4,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { v4 as uuidv4 } from 'uuid';
-// import { CiteKitClient } from 'citekit'; // Removed for Vercel build fix (DOMMatrix issue)
+import { CiteKitClient } from 'citekit';
 
-// VERCEL STABILITY: In-memory browser polyfills for PDF libraries
-if (typeof globalThis !== 'undefined') {
-    const g = globalThis as any;
-    if (!g.DOMMatrix) {
-        g.DOMMatrix = class DOMMatrix {
-            a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
-            constructor(init?: any) {
-                if (Array.isArray(init)) {
-                    this.a = init[0]; this.b = init[1]; this.c = init[2];
-                    this.d = init[3]; this.e = init[4]; this.f = init[5];
-                }
-            }
-            multiply(other: any) { return new DOMMatrix([this.a, this.b, this.c, this.d, this.e, this.f]); }
-            toString() { return `matrix(${this.a}, ${this.b}, ${this.c}, ${this.d}, ${this.e}, ${this.f})`; }
-        };
-    }
-    if (!g.ImageData) g.ImageData = class ImageData { width = 0; height = 0; data = new Uint8ClampedArray(0); };
-    if (!g.Path2D) g.Path2D = class Path2D { };
-}
+const apiKey = process.env.GEMINI_API_KEY || "";
 
 // Separate model for document analysis (no tools, JSON output)
 const analysisModel = genAI.getGenerativeModel({
@@ -151,16 +133,9 @@ export async function analyzeDocument(fileUrl: string, mimeType: string = "appli
             fs.writeFileSync(tempFilePath, Buffer.from(buffer));
             console.log(`[CiteKit] File saved to temp: ${tempFilePath} (${buffer.byteLength} bytes)`);
 
-            console.log(`[CiteKit] Dynamically importing CiteKitClient...`);
-            const { CiteKitClient } = await import('citekit');
-            console.log(`[CiteKit] CiteKitClient imported successfully.`);
-
-            const outputDir = path.join(os.tmpdir(), 'citekit_output');
-            if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-
+            console.log(`[CiteKit] Initializing CiteKitClient (v0.1.3+) with baseDir: ${os.tmpdir()}`);
             const client = new CiteKitClient({
-                storageDir: storageDir,
-                outputDir: outputDir,
+                baseDir: os.tmpdir(),
                 apiKey: process.env.GEMINI_API_KEY
             });
 
