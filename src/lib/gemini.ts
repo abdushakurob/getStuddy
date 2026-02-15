@@ -1,4 +1,3 @@
-
 import { SchemaType } from "@google/generative-ai";
 import { genAI, AI_MODEL } from "./ai-config";
 import * as fs from 'fs';
@@ -6,6 +5,26 @@ import * as path from 'path';
 import * as os from 'os';
 import { v4 as uuidv4 } from 'uuid';
 // import { CiteKitClient } from 'citekit'; // Removed for Vercel build fix (DOMMatrix issue)
+
+// VERCEL STABILITY: In-memory browser polyfills for PDF libraries
+if (typeof globalThis !== 'undefined') {
+    const g = globalThis as any;
+    if (!g.DOMMatrix) {
+        g.DOMMatrix = class DOMMatrix {
+            a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+            constructor(init?: any) {
+                if (Array.isArray(init)) {
+                    this.a = init[0]; this.b = init[1]; this.c = init[2];
+                    this.d = init[3]; this.e = init[4]; this.f = init[5];
+                }
+            }
+            multiply(other: any) { return new DOMMatrix([this.a, this.b, this.c, this.d, this.e, this.f]); }
+            toString() { return `matrix(${this.a}, ${this.b}, ${this.c}, ${this.d}, ${this.e}, ${this.f})`; }
+        };
+    }
+    if (!g.ImageData) g.ImageData = class ImageData { width = 0; height = 0; data = new Uint8ClampedArray(0); };
+    if (!g.Path2D) g.Path2D = class Path2D { };
+}
 
 // Separate model for document analysis (no tools, JSON output)
 const analysisModel = genAI.getGenerativeModel({
@@ -98,6 +117,7 @@ export async function analyzeDocument(fileUrl: string, mimeType: string = "appli
 
     // 1. Try CiteKit Ingestion (Deep structural mapping)
     console.log(`[CiteKit] Starting ingestion block for ${fileUrl}`);
+
     try {
         const tempId = resourceId || uuidv4();
         const tempDir = path.join(os.tmpdir(), 'citekit_temp');
