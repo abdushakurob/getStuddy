@@ -6,6 +6,50 @@ import { ResolvedNode } from "@/models/ResolvedNode";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import { v4 as uuidv4 } from 'uuid';
+
+// VERCEL STABILITY: In-memory browser polyfills for PDF libraries
+if (typeof globalThis !== 'undefined') {
+    const g = globalThis as any;
+    if (!g.DOMMatrix) {
+        g.DOMMatrix = class DOMMatrix {
+            a = 1; b = 0; c = 0; d = 1; e = 0; f = 0;
+            constructor(init?: any) {
+                if (Array.isArray(init)) {
+                    this.a = init[0]; this.b = init[1]; this.c = init[2];
+                    this.d = init[3]; this.e = init[4]; this.f = init[5];
+                } else if (typeof init === 'string') {
+                    // Basic parsing for "matrix(a, b, c, d, e, f)"
+                    const match = init.match(/matrix\(([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^)]+)\)/);
+                    if (match) {
+                        this.a = parseFloat(match[1]);
+                        this.b = parseFloat(match[2]);
+                        this.c = parseFloat(match[3]);
+                        this.d = parseFloat(match[4]);
+                        this.e = parseFloat(match[5]);
+                        this.f = parseFloat(match[6]);
+                    }
+                }
+            }
+            multiply(other: DOMMatrix) {
+                // Simplified multiplication for 2D affine transformation
+                // (a b e)   (a' b' e')
+                // (c d f) x (c' d' f')
+                // (0 0 1)   (0  0  1 )
+                const a = this.a * other.a + this.c * other.b;
+                const b = this.b * other.a + this.d * other.b;
+                const c = this.a * other.c + this.c * other.d;
+                const d = this.b * other.c + this.d * other.d;
+                const e = this.a * other.e + this.c * other.f + this.e;
+                const f = this.b * other.e + this.d * other.f + this.f;
+                return new DOMMatrix([a, b, c, d, e, f]);
+            }
+            toString() { return `matrix(${this.a}, ${this.b}, ${this.c}, ${this.d}, ${this.e}, ${this.f})`; }
+        };
+    }
+    if (!g.ImageData) g.ImageData = class ImageData { width = 0; height = 0; data = new Uint8ClampedArray(0); };
+    if (!g.Path2D) g.Path2D = class Path2D { };
+}
 
 // Initialize UploadThing API client
 const utapi = new UTApi();
@@ -54,7 +98,7 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
 
     try {
         // Initialize CiteKit Client
-        const { CiteKitClient } = await import('citekit');
+        const { CiteKitClient } = await import('citekit'); // Dynamic import
         const client = new CiteKitClient({
             storageDir: mapsDir,
             outputDir: outputDir,
