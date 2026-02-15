@@ -155,8 +155,12 @@ export async function analyzeDocument(fileUrl: string, mimeType: string = "appli
             const { CiteKitClient } = await import('citekit');
             console.log(`[CiteKit] CiteKitClient imported successfully.`);
 
+            const outputDir = path.join(os.tmpdir(), 'citekit_output');
+            if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
             const client = new CiteKitClient({
                 storageDir: storageDir,
+                outputDir: outputDir,
                 apiKey: process.env.GEMINI_API_KEY
             });
 
