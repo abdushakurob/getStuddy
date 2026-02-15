@@ -1,4 +1,5 @@
 import { SchemaType } from "@google/generative-ai";
+import { createAgentContext } from "citekit";
 import { AI_MODEL, genAI } from "./ai-config";
 
 // --- Configuration ---
@@ -48,14 +49,10 @@ export function initializeCompanion(context: any) {
 
     // Build MASTER PAGE INDEX from CiteKit Map (Primary) or Learning Map (Fallback)
     let pageIndexText = "";
-    if (context.citeKitMap && context.citeKitMap.nodes) {
-        pageIndexText = context.citeKitMap.nodes.map((node: any) => {
-            const pages = node.location?.pages?.join(', ') || 'N/A';
-            const nodeName = node.label || node.title || `[${node.type || 'Content'}]`;
-            const snippet = node.content ? `\n    Content: "${node.content.substring(0, 300)}..."` : "";
-            // Explicitly show Node ID so the Agent can use it for exact lookup
-            return `[PDF Page ${pages}] ${nodeName} (ID: ${node.id})${snippet}`;
-        }).join('\n\n');
+    if (context.citeKitMap) {
+        // Use CiteKit's native Aggregator (v0.1.4+) for optimized Agent context
+        // maps parameter expects an array
+        pageIndexText = createAgentContext([context.citeKitMap], 'markdown');
     } else if (context.learningMap && context.learningMap.length > 0) {
         pageIndexText = context.learningMap.map((unit: any) =>
             `${unit.topic}:\n${(unit.concepts || []).map((c: any) =>

@@ -9,7 +9,11 @@ import { findNodeByPage, resolveResourceNode } from '@/lib/citekit-resolver';
 
 // Helper to fetch evidence from UploadThing and convert to Base64 (Essential for Gemini Multimodal)
 // Helper to fetch evidence from UploadThing (Essential for Gemini Multimodal)
+// Helper to fetch evidence from UploadThing (Essential for Gemini Multimodal)
 async function fetchEvidenceBuffer(url: string): Promise<{ buffer: Buffer, mimeType: string }> {
+    if (url.startsWith('virtual://')) {
+        throw new Error("Cannot fetch buffer for virtual URL. Handle virtual grounding in caller.");
+    }
     try {
         const response = await fetch(url, {
             headers: { 'User-Agent': 'Mozilla/5.0 (StuddyBot/1.0)' }
@@ -359,16 +363,38 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
         try {
             console.log(`[CiteKit Sticky] Attaching evidence: ${studySession.activeGroundingNodeId}`);
 
-            // 1. Fetch Buffer
-            const { buffer, mimeType } = await fetchEvidenceBuffer(studySession.activeGroundingUrl);
+            let evidenceBuffer: Buffer;
+            let evidenceMime: string;
+            let sourceUrl = studySession.activeGroundingUrl;
+            let groundingHint = "";
+
+            // 1. Handle Virtual Mode
+            if (studySession.activeGroundingUrl.startsWith('virtual://')) {
+                const { ResolvedNode } = await import('@/models/ResolvedNode');
+                const vNode = await ResolvedNode.findOne({
+                    resourceId: studySession.currentResourceId,
+                    nodeId: studySession.activeGroundingNodeId
+                });
+
+                if (vNode && vNode.metadata?.isVirtual) {
+                    sourceUrl = vNode.metadata.originalFileUrl;
+                    const loc = vNode.metadata.location;
+                    groundingHint = `[GROUNDING CONTEXT: Focus on ${loc.modality === 'video' ? `timestamps ${loc.start}-${loc.end}s` : (loc.pages ? `pages ${loc.pages.join(', ')}` : `this section`)}]`;
+                }
+            }
+
+            // 2. Fetch Buffer (Original or Sliced)
+            const { buffer, mimeType } = await fetchEvidenceBuffer(sourceUrl);
+            evidenceBuffer = buffer;
+            evidenceMime = mimeType;
             const sizeMB = buffer.length / (1024 * 1024);
 
-            // 2. Hybrid Logic
+            // 3. Hybrid Logic (Inline vs File API)
             if (sizeMB > 3.0) {
                 // Large File -> Upload to Gemini File API
                 console.log(`[CiteKit Hybrid] Evidence is large (${sizeMB.toFixed(2)}MB). Uploading to Gemini...`);
                 const { uploadToGemini } = await import('./gemini');
-                const { fileUri, mimeType: uploadedMime } = await uploadToGemini(studySession.activeGroundingUrl, mimeType);
+                const { fileUri, mimeType: uploadedMime } = await uploadToGemini(sourceUrl, evidenceMime);
 
                 currentMessageParts.push({
                     fileData: {
@@ -381,11 +407,17 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
                 console.log(`[CiteKit Hybrid] Evidence is small (${sizeMB.toFixed(2)}MB). Using Inline Base64.`);
                 currentMessageParts.push({
                     inlineData: {
-                        data: buffer.toString('base64'),
-                        mimeType
+                        data: evidenceBuffer.toString('base64'),
+                        mimeType: evidenceMime
                     }
                 });
             }
+
+            // 4. Inject Grounding Hint if Virtual
+            if (groundingHint) {
+                currentMessageParts.push({ text: groundingHint });
+            }
+
         } catch (e) {
             console.error("[CiteKit Sticky] Failed to attach evidence:", e);
         }

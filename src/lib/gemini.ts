@@ -168,10 +168,11 @@ export async function analyzeDocument(fileUrl: string, mimeType: string = "appli
             fs.writeFileSync(tempFilePath, Buffer.from(buffer));
             console.log(`[CiteKit] File saved to temp: ${tempFilePath} (${buffer.byteLength} bytes)`);
 
-            console.log(`[CiteKit] Initializing CiteKitClient (v0.1.3+) with baseDir: ${os.tmpdir()}`);
+            console.log(`[CiteKit] Initializing CiteKitClient (v0.1.5+) with baseDir: ${os.tmpdir()}`);
             const client = new CiteKitClient({
                 baseDir: os.tmpdir(),
-                apiKey: process.env.GEMINI_API_KEY
+                apiKey: process.env.GEMINI_API_KEY,
+                maxRetries: 3 // Fixed in v0.1.5 Types
             });
 
             console.log(`[CiteKit] Ingesting ${tempFilePath}...`);

@@ -12,9 +12,10 @@ import { v4 as uuidv4 } from 'uuid';
 const utapi = new UTApi();
 
 /**
- * Resolves a CiteKit node within a resource, with cloud-based caching in UploadThing.
+ * Resolves a CiteKit node within a resource, with cloud-based caching.
+ * Mode: 'physical' (slices file) or 'virtual' (metadata timestamps/pages).
  */
-export async function resolveResourceNode(resourceId: string, nodeId: string) {
+export async function resolveResourceNode(resourceId: string, nodeId: string, options: { virtual?: boolean } = {}) {
     await dbConnect();
 
     // 0. Noise Cleaning: Strip [PDF Page ...] prefix immediately
@@ -24,7 +25,6 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
         console.log(`[CiteKit] Cleaned Node ID: '${nodeId}' -> '${cleanNodeId}'`);
     }
 
-    // 1. Check Cloud Cache (using CLEAN ID)
     const cachedNode = await ResolvedNode.findOne({
         resourceId,
         nodeId: cleanNodeId
@@ -36,11 +36,14 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
     }
 
     // 2. Cache MISS: Proceed with Resolution
-    console.log(`[CiteKit] Cache MISS for ${resourceId}/${nodeId}. Resolving...`);
+    console.log(`[CiteKit] Cache MISS for ${resourceId}/${nodeId}. Resolving (Virtual: ${!!options.virtual})...`);
 
     const resource = await Resource.findById(resourceId).select('+citeKitMap');
     if (!resource) throw new Error("Resource not found");
     if (!resource.fileUrl) throw new Error("Resource has no file URL");
+
+    const isVideoOrAudio = resource.type === 'video' || resource.type === 'audio';
+    const useVirtual = options.virtual ?? isVideoOrAudio; // Default to Virtual for Video/Audio on Vercel
 
     const baseDir = os.tmpdir();
     // Use 'citekit_temp' to match gemini.ts and avoid ENOENT issues (library default?)
@@ -48,22 +51,28 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
 
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
-    // Download original file
-    // SAFE EXTENSION LOGIC: Do not trust URL splitting for UploadThing URLs (which might not have extensions)
+    // SAFE EXTENSION LOGIC: Do not trust URL splitting for UploadThing URLs
     const ext = resource.type === 'video' ? 'mp4' : (resource.type === 'image' ? 'png' : 'pdf');
     const sourcePath = path.join(tempDir, `${resourceId}.${ext}`);
+    let sourceDownloaded = false;
 
-    console.log(`[CiteKit] Downloading source: ${resource.fileUrl}`);
-    const res = await fetch(resource.fileUrl);
-    if (!res.ok) throw new Error(`Failed to download resource: ${res.statusText}`);
-    const buffer = Buffer.from(await res.arrayBuffer());
-    fs.writeFileSync(sourcePath, buffer);
+    // Helper: Ensure the source is downloaded if we need it (for Ingestion or Physical Resolve)
+    const ensureSource = async () => {
+        if (sourceDownloaded) return;
+        console.log(`[CiteKit] Downloading source: ${resource.fileUrl}`);
+        const res = await fetch(resource.fileUrl);
+        if (!res.ok) throw new Error(`Failed to download resource: ${res.statusText}`);
+        const buffer = Buffer.from(await res.arrayBuffer());
+        fs.writeFileSync(sourcePath, buffer);
+        sourceDownloaded = true;
+    };
 
     try {
-        // Initialize CiteKit Client (v0.1.3+)
+        // Initialize CiteKit Client (v0.1.5+)
         const client = new CiteKitClient({
             baseDir: baseDir,
-            apiKey: process.env.GEMINI_API_KEY
+            apiKey: process.env.GEMINI_API_KEY,
+            maxRetries: 3 // Fixed in v0.1.5 Types
         });
 
         // CiteKit needs the map to be in its internal storage to resolve nodes.
@@ -79,25 +88,14 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
                 (resource.type === 'audio' ? 'audio' :
                     (resource.type === 'image' ? 'image' : 'document'));
 
-            // Ingest to generate map with Retries
-            let ingestSuccess = false;
-            let lastError: any = null;
-            for (let i = 1; i <= 3; i++) {
-                try {
-                    console.log(`[CiteKit] Auto-Ingest Attempt ${i}...`);
-                    await client.ingest(sourcePath, ckType, { resourceId });
-                    ingestSuccess = true;
-                    break;
-                } catch (ingestErr) {
-                    lastError = ingestErr;
-                    console.warn(`[CiteKit] Auto-Ingest Attempt ${i} failed:`, ingestErr);
-                    if (i < 3) await new Promise(r => setTimeout(r, 1000 * i)); // Backoff
-                }
-            }
-
-            if (!ingestSuccess) {
-                console.error("[CiteKit] Auto-Ingest Failed. Proceeding with Text-Only.");
-                throw new Error(`AUTO_INGEST_FAILED: ${lastError?.message || 'Unknown Error'}`);
+            // Ingest to generate map with native SDK retries
+            try {
+                console.log(`[CiteKit] Auto-Ingesting ${sourcePath}...`);
+                await ensureSource();
+                await client.ingest(sourcePath, ckType, { resourceId });
+            } catch (ingestErr) {
+                console.error("[CiteKit] Auto-Ingest Failed. Proceeding with Text-Only.", ingestErr);
+                throw new Error(`AUTO_INGEST_FAILED: ${ingestErr instanceof Error ? ingestErr.message : 'Unknown Error'}`);
             }
 
             mapToUse = client.getMap(resourceId);
@@ -135,8 +133,35 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
         }
 
         // Perform Resolution
-        console.log(`[CiteKit] Slicing node ${targetNodeId} (${resource.type})...`);
-        const evidence = await client.resolve(resourceId, targetNodeId);
+        console.log(`[CiteKit] Resolving node ${targetNodeId} (Virtual: ${useVirtual})...`);
+
+        if (!useVirtual) await ensureSource();
+
+        const evidence = await client.resolve(resourceId, targetNodeId, { virtual: useVirtual });
+
+        if (useVirtual) {
+            // Virtual Resolution: Store the address pointer (e.g., video://...#t=10,20)
+            const virtualUrl = `virtual://${evidence.address || nodeId}`;
+
+            await ResolvedNode.create({
+                resourceId,
+                nodeId: cleanNodeId,
+                url: virtualUrl,
+                mimeType: resource.type, // Marker for client
+                metadata: {
+                    isVirtual: true,
+                    location: evidence.node.location,
+                    originalAddress: evidence.address,
+                    originalFileUrl: resource.fileUrl
+                }
+            });
+
+            console.log(`[CiteKit] Virtual Resolve Cached: ${virtualUrl}`);
+            return virtualUrl;
+        }
+
+        // PHYSICAL RESOLVE (Legacy/PDF)
+        if (!evidence.output_path) throw new Error("Physical resolve failed: No output path returned");
 
         // Zero-Byte Safety Check: Ensure the sliced file isn't empty
         const stats = fs.statSync(evidence.output_path);
@@ -172,17 +197,19 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
             url: uploadedUrl,
             mimeType: resultMimeType,
             metadata: {
+                isVirtual: false,
                 location: evidence.node.location,
-                originalAddress: evidence.address
+                originalAddress: evidence.address,
+                originalFileUrl: resource.fileUrl
             }
         });
 
-        console.log(`[CiteKit] Node resolved and cached: ${uploadedUrl}`);
+        console.log(`[CiteKit] Physical Node resolved and cached: ${uploadedUrl}`);
 
         // Cleanup
         try {
-            fs.unlinkSync(sourcePath);
-            fs.unlinkSync(evidence.output_path);
+            if (sourceDownloaded && fs.existsSync(sourcePath)) fs.unlinkSync(sourcePath);
+            if (fs.existsSync(evidence.output_path)) fs.unlinkSync(evidence.output_path);
         } catch (_) { }
 
         return uploadedUrl;
