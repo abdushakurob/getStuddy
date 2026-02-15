@@ -35,13 +35,10 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
     if (!resource) throw new Error("Resource not found");
     if (!resource.fileUrl) throw new Error("Resource has no file URL");
 
-    const tempDir = path.join(os.tmpdir(), "citekit_resolve");
-    const outputDir = path.join(os.tmpdir(), "citekit_output");
-    const mapsDir = path.join(os.tmpdir(), "citekit_maps");
+    const baseDir = os.tmpdir();
+    const tempDir = path.join(baseDir, "citekit_resolve");
 
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
-    if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
-    if (!fs.existsSync(mapsDir)) fs.mkdirSync(mapsDir, { recursive: true });
 
     // Download original file
     const ext = resource.fileUrl.split('.').pop() || 'pdf';
@@ -56,16 +53,21 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
     try {
         // Initialize CiteKit Client (v0.1.3+)
         const client = new CiteKitClient({
-            baseDir: os.tmpdir(),
+            baseDir: baseDir,
             apiKey: process.env.GEMINI_API_KEY
         });
 
-        // Ensure CiteKit has the map locally
+        // CiteKit needs the map to be in its internal storage to resolve nodes.
+        // We ensure it's there before resolving.
+        // The default storage for maps in v0.1.3 is [baseDir]/.resource_maps
+        const mapsDir = path.join(baseDir, ".resource_maps");
+        if (!fs.existsSync(mapsDir)) fs.mkdirSync(mapsDir, { recursive: true });
+
         if (resource.citeKitMap) {
             const mapPath = path.join(mapsDir, `${resourceId}.json`);
             fs.writeFileSync(mapPath, JSON.stringify(resource.citeKitMap));
         } else {
-            throw new Error("Resource has no CiteKit map. Ingestion must be performed first.");
+            throw new Error("Resource has no CiteKit map.");
         }
 
         // Perform Resolution

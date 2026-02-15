@@ -102,11 +102,10 @@ export async function analyzeDocument(fileUrl: string, mimeType: string = "appli
 
     try {
         const tempId = resourceId || uuidv4();
-        const tempDir = path.join(os.tmpdir(), 'citekit_temp');
-        const storageDir = path.join(os.tmpdir(), 'citekit_maps');
+        const baseDir = os.tmpdir();
+        const tempDir = path.join(baseDir, 'citekit_temp');
 
         if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
-        if (!fs.existsSync(storageDir)) fs.mkdirSync(storageDir, { recursive: true });
 
         const ext = (mimeType === 'application/pdf' || mimeType.includes('pdf')) ? '.pdf' : '.bin';
         const tempFilePath = path.join(tempDir, `${tempId}${ext}`);
@@ -141,17 +140,13 @@ export async function analyzeDocument(fileUrl: string, mimeType: string = "appli
 
             console.log(`[CiteKit] Ingesting ${tempFilePath}...`);
             // Detect type for CiteKit
-            const ckType = mimeType.includes('pdf') ? 'document' : (mimeType.includes('video') ? 'video' : 'image');
+            const ckType = mimeType.includes('video') ? 'video' : (mimeType.includes('pdf') ? 'document' : 'image');
 
             await client.ingest(tempFilePath, ckType as any, { resourceId: tempId });
 
-            const mapPath = path.join(storageDir, `${tempId}.json`);
-            if (fs.existsSync(mapPath)) {
-                citeKitMap = JSON.parse(fs.readFileSync(mapPath, 'utf-8'));
-                console.log(`[CiteKit] Map generated: ${citeKitMap.nodes?.length || 0} nodes`);
-            } else {
-                console.warn(`[CiteKit] Map file not found at ${mapPath}`);
-            }
+            // Use the SDK's built-in retrieval
+            citeKitMap = client.getMap(tempId);
+            console.log(`[CiteKit] Map generated: ${citeKitMap.nodes?.length || 0} nodes`);
 
             try { fs.unlinkSync(tempFilePath); } catch (_) { }
         } else {
