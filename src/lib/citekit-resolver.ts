@@ -31,7 +31,7 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
     // 2. Cache MISS: Proceed with Resolution
     console.log(`[CiteKit] Cache MISS for ${resourceId}/${nodeId}. Resolving...`);
 
-    const resource = await Resource.findById(resourceId);
+    const resource = await Resource.findById(resourceId).select('+citeKitMap');
     if (!resource) throw new Error("Resource not found");
     if (!resource.fileUrl) throw new Error("Resource has no file URL");
 
