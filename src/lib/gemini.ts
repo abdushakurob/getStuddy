@@ -176,7 +176,9 @@ export async function analyzeDocument(fileUrl: string, mimeType: string = "appli
 
             console.log(`[CiteKit] Ingesting ${tempFilePath}...`);
             // Detect type for CiteKit
-            const ckType = mimeType.includes('video') ? 'video' : (mimeType.includes('pdf') ? 'document' : 'image');
+            const ckType = mimeType.includes('video') ? 'video' :
+                (mimeType.includes('audio') ? 'audio' :
+                    (mimeType.includes('pdf') ? 'document' : 'image'));
 
             await client.ingest(tempFilePath, ckType as any, { resourceId: tempId });
 

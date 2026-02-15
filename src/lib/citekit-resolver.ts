@@ -75,7 +75,9 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
 
         if (!mapToUse) {
             console.log(`[CiteKit] AUTO-MAP: Resource ${resourceId} has no map. Generating on the fly...`);
-            const ckType = resource.type === 'video' ? 'video' : (resource.type === 'image' ? 'image' : 'document');
+            const ckType = resource.type === 'video' ? 'video' :
+                (resource.type === 'audio' ? 'audio' :
+                    (resource.type === 'image' ? 'image' : 'document'));
 
             // Ingest to generate map with Retries
             let ingestSuccess = false;
@@ -136,9 +138,17 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
         console.log(`[CiteKit] Slicing node ${targetNodeId} (${resource.type})...`);
         const evidence = await client.resolve(resourceId, targetNodeId);
 
+        // Zero-Byte Safety Check: Ensure the sliced file isn't empty
+        const stats = fs.statSync(evidence.output_path);
+        if (stats.size === 0) {
+            console.error(`[CiteKit] Slicing failed: ${evidence.output_path} is empty.`);
+            throw new Error("Resolved node yielded zero bytes. Resolution failed.");
+        }
+
         // Detect MimeType for Upload
         const resultMimeType = resource.type === 'video' ? 'video/mp4' :
-            (resource.type === 'image' ? 'image/png' : 'application/pdf');
+            (resource.type === 'audio' ? 'audio/mpeg' :
+                (resource.type === 'image' ? 'image/png' : 'application/pdf'));
 
         // Upload Resolved Segment to UploadThing
         console.log(`[CiteKit] Uploading resolved segment to UploadThing...`);
