@@ -17,10 +17,17 @@ const utapi = new UTApi();
 export async function resolveResourceNode(resourceId: string, nodeId: string) {
     await dbConnect();
 
-    // 1. Check Cloud Cache
+    // 0. Noise Cleaning: Strip [PDF Page ...] prefix immediately
+    // This ensures cache keys are clean and bypasses any old "dirty" cache entries.
+    const cleanNodeId = nodeId.replace(/\[PDF Page.*?\]\s*/gi, '').trim();
+    if (cleanNodeId !== nodeId) {
+        console.log(`[CiteKit] Cleaned Node ID: '${nodeId}' -> '${cleanNodeId}'`);
+    }
+
+    // 1. Check Cloud Cache (using CLEAN ID)
     const cachedNode = await ResolvedNode.findOne({
         resourceId,
-        nodeId
+        nodeId: cleanNodeId
     });
 
     if (cachedNode) {
@@ -107,14 +114,12 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
         const exactMatch = mapToUse.nodes.find((n: any) => n.id === nodeId);
 
         if (!exactMatch) {
-            // Noise Cleaning: Strip [PDF Page ...] prefix if Agent sent the display string
-            const cleanQuery = nodeId.replace(/\[PDF Page.*?\]\s*/gi, '').trim().toLowerCase();
-            console.log(`[CiteKit] Fuzzy Search Query: '${cleanQuery}' (Original: '${nodeId}')`);
+
 
             // Try lenient case-insensitive match on Label
             const fuzzyMatch = mapToUse.nodes.find((n: any) =>
-                (n.label && n.label.toLowerCase().includes(cleanQuery)) ||
-                (n.title && n.title.toLowerCase().includes(cleanQuery))
+                (n.label && n.label.toLowerCase().includes(cleanNodeId.toLowerCase())) ||
+                (n.title && n.title.toLowerCase().includes(cleanNodeId.toLowerCase()))
             );
 
             if (fuzzyMatch) {
@@ -150,9 +155,10 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
         const uploadedUrl = uploadResult.data.url;
 
         // Cache the URL
+        // Cache the CLEAN ID result
         await ResolvedNode.create({
             resourceId,
-            nodeId,
+            nodeId: cleanNodeId,
             url: uploadedUrl,
             mimeType: resultMimeType,
             metadata: {

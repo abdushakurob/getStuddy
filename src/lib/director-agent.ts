@@ -53,7 +53,8 @@ export function initializeCompanion(context: any) {
             const pages = node.location?.pages?.join(', ') || 'N/A';
             const nodeName = node.label || node.title || `[${node.type || 'Content'}]`;
             const snippet = node.content ? `\n    Content: "${node.content.substring(0, 300)}..."` : "";
-            return `[PDF Page ${pages}] ${nodeName}${snippet}`;
+            // Explicitly show Node ID so the Agent can use it for exact lookup
+            return `[PDF Page ${pages}] ${nodeName} (ID: ${node.id})${snippet}`;
         }).join('\n\n');
     } else if (context.learningMap && context.learningMap.length > 0) {
         pageIndexText = context.learningMap.map((unit: any) =>
