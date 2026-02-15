@@ -40,6 +40,10 @@ const SessionSchema = new mongoose.Schema({
         ref: 'Resource'
     },
 
+    // --- Sticky Grounding (Visual Context) ---
+    activeGroundingUrl: { type: String }, // The UploadThing URL of the currently "pinned" node
+    activeGroundingNodeId: { type: String }, // The Node ID derived from CiteKit
+
     // --- Agentic Core (Anchor & Drift) ---
     milestones: [{
         label: { type: String, required: true },

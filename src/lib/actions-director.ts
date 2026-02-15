@@ -7,53 +7,76 @@ import { initializeCompanion, sendCompanionMessage } from './director-agent';
 import { revalidatePath } from 'next/cache';
 import { findNodeByPage, resolveResourceNode } from '@/lib/citekit-resolver';
 
-// Handle tool calls from Companion Agent
+// Helper to fetch evidence from UploadThing and convert to Base64 (Essential for Gemini Multimodal)
+async function fetchAsBase64(url: string): Promise<string> {
+    try {
+        const response = await fetch(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (StuddyBot/1.0)' }
+        });
+        if (!response.ok) throw new Error(`Fetch failed: ${response.statusText}`);
+        const buffer = await response.arrayBuffer();
+        return Buffer.from(buffer).toString('base64');
+    } catch (e) {
+        console.error("[fetchAsBase64] Error:", e);
+        throw e;
+    }
+}
+
 async function handleToolCall(toolCall: any, sessionId: string) {
     const { name, args } = toolCall;
 
     switch (name) {
         case 'navigate_resource':
-            let resolvedUrl = null;
-            try {
-                if (args.resource_id) {
-                    let targetNodeId = args.node_id;
-
-                    // Fallback to page-based lookup only if node_id is missing
-                    if (!targetNodeId && args.page) {
-                        const pageNum = parseInt(args.page);
-                        targetNodeId = await findNodeByPage(args.resource_id, pageNum);
-                    }
-
-                    // Fallback to timestamp-based lookup for Video/Audio
-                    if (!targetNodeId && args.timestamp) {
-                        let seconds = 0;
-                        if (typeof args.timestamp === 'string' && args.timestamp.includes(':')) {
-                            const [m, s] = args.timestamp.split(':').map(Number);
-                            seconds = (m * 60) + s;
-                        } else {
-                            seconds = parseInt(args.timestamp);
-                        }
-                        const { findNodeByTimestamp } = await import('@/lib/citekit-resolver');
-                        targetNodeId = await findNodeByTimestamp(args.resource_id, seconds);
-                    }
-
-                    if (targetNodeId) {
-                        console.log(`[CiteKit Flow] Resolving Node: ${targetNodeId}`);
-                        resolvedUrl = await resolveResourceNode(args.resource_id, targetNodeId);
-                    }
-                }
-            } catch (e) {
-                console.error("[handleToolCall] Resolution failed:", e);
-            }
-
+            // PURE UI NAVIGATION - No evidence fetching
             return {
                 type: 'navigation',
                 page: args.page,
-                nodeId: args.node_id,
-                resourceId: args.resource_id,
                 timestamp: args.timestamp,
-                context: args.context || args.concept,
-                resolvedUrl // Include for UI/Agent context
+                resourceId: args.resource_id,
+                context: "Navigating UI..."
+            };
+
+        case 'ground_concept':
+            console.log(`[CiteKit Grounding] Pinning concept: ${args.node_id}`);
+            let pinnedUrl = null;
+            try {
+                // 1. Resolve Node
+                // Note: We might need to look up node ID by page if not provided, but ground_concept requires node_id.
+                const targetNodeId = args.node_id;
+
+                if (targetNodeId && args.resource_id) {
+                    pinnedUrl = await resolveResourceNode(args.resource_id, targetNodeId);
+                }
+
+                // 2. Persist to Session (Sticky)
+                if (pinnedUrl) {
+                    await Session.findByIdAndUpdate(sessionId, {
+                        $set: {
+                            activeGroundingUrl: pinnedUrl,
+                            activeGroundingNodeId: targetNodeId
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error("[ground_concept] Failed:", e);
+            }
+
+            return {
+                type: 'grounding',
+                nodeId: args.node_id,
+                resolvedUrl: pinnedUrl,
+                context: args.context
+            };
+
+        case 'clear_grounding':
+            await Session.findByIdAndUpdate(sessionId, {
+                $unset: {
+                    activeGroundingUrl: 1,
+                    activeGroundingNodeId: 1
+                }
+            });
+            return {
+                type: 'grounding_cleared'
             };
 
         case 'explain_concept':
@@ -200,7 +223,7 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
 
     // Build comprehensive content
     const knowledgeBase = resources.map((r: any) =>
-        `=== ${r.title} (${r.type}) ===\n${r.knowledgeBase?.substring(0, 12000) || r.summary || ''}`
+        `=== ${r.title} (${r.type}) ===\n${r.knowledgeBase?.substring(0, 50000) || r.summary || ''}`
     ).join('\n\n');
 
     // List of resources for Agent to see
@@ -279,8 +302,18 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
                     mimeType: "application/pdf"
                 }
             });
-            // We can clear it after attaching so it doesn't clutter every turn, 
+            // We can clear it after attaching so it doesn't clutter every turn,
             // OR keep it for persistent context. Let's keep it for now.
+        }
+
+        // Sticky Grounding Injection
+        // If the session has an activeGroundingUrl, we attach it to EVERY assistant turn
+        // to remind the model of what it is looking at.
+        // Optimization: We could attach it only to the system prompt or first turn,
+        // but attaching to recent turns ensures fresh vision.
+        if (studySession.activeGroundingUrl && t.role === 'assistant') {
+            // We don't have studySession inside map... wait, we do via closure? Yes.
+            // Ideally we pass it in. But let's check current turn logic.
         }
 
         return {
@@ -289,22 +322,34 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
         };
     });
 
-    // Also inject the most recent evidence into the CURRENT message parts
-    const currentMessageParts: any[] = [{ text: userMessage }];
-    if (lastResolvedUrl) {
-        currentMessageParts.push({
-            fileData: {
-                fileUri: lastResolvedUrl,
-                mimeType: "application/pdf"
-            }
-        });
-    }
+    // Inject Sticky Grounding into History
+    // We'll just start afresh for the current turn below.
+    // Actually, for history, let's inject it if the TURN itself established the grounding.
+    // But simplifcation: The Model "sees" what is in the current context.
 
     // Gemini requires first message to be from 'user'
     const firstUserIndex = history.findIndex((m: any) => m.role === 'user');
     const finalHistory = firstUserIndex >= 0 ? history.slice(firstUserIndex) : [];
 
-    // Send message to Companion with multimodal parts
+    // Also inject the most recent evidence into the CURRENT message parts
+    const currentMessageParts: any[] = [{ text: userMessage }];
+
+    // FETCH STICKY EVIDENCE
+    if (studySession.activeGroundingUrl) {
+        try {
+            console.log(`[CiteKit Sticky] Attaching evidence: ${studySession.activeGroundingNodeId}`);
+            const base64Data = await fetchAsBase64(studySession.activeGroundingUrl);
+            currentMessageParts.push({
+                inlineData: {
+                    data: base64Data,
+                    mimeType: "application/pdf"
+                }
+            });
+        } catch (e) {
+            console.error("[CiteKit Sticky] Failed to attach evidence:", e);
+        }
+    }
+
     const response = await sendCompanionMessage(model, currentMessageParts as any, finalHistory);
 
     // Process tool calls

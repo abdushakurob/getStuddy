@@ -6,21 +6,38 @@ import { AI_MODEL, genAI } from "./ai-config";
 const tools = [
     {
         name: "navigate_resource",
-        description: "Navigates the user's view to a specific page or location in a resource. Use this to grounding explanations.",
+        description: "Navigates the user's view to a specific page or location. PURELY UI SCROLLING. Does NOT fetch new evidence for you to see. Use 'ground_concept' if you need to SEE the content.",
         parameters: {
             type: SchemaType.OBJECT,
             properties: {
-                node_id: { type: SchemaType.STRING, description: "The exact CiteKit Node ID (e.g. 'chapter1.intro') from the Map. PREFERRED." },
-                page: { type: SchemaType.NUMBER, description: "Page number (Fallback if node_id is unavailable)" },
-                timestamp: { type: SchemaType.STRING, description: "Timestamp for Video/Audio only." },
-                concept: { type: SchemaType.STRING, description: "The concept being shown (optional context)" },
-                context: { type: SchemaType.STRING, description: "The concept being shown (optional context)" },
-                resource_id: { type: SchemaType.STRING, description: "ID of the resource to switch to. See AVAILABLE RESOURCES list." }
+                page: { type: SchemaType.NUMBER, description: "Page number to scroll to." },
+                timestamp: { type: SchemaType.STRING, description: "Timestamp for Video/Audio." },
+                resource_id: { type: SchemaType.STRING, description: "ID of the resource to switch to." }
             },
-            required: ["context"]
+            required: ["page"]
         }
     },
-    // ... other tools can be added here if shared
+    {
+        name: "ground_concept",
+        description: "Fetches and PINS physical evidence (PDF slices, video frames) for a specific concept/node. Once called, you will SEE this evidence in every future turn until you clear it. Call this when starting a new sub-topic.",
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                node_id: { type: SchemaType.STRING, description: "The exact CiteKit Node ID from the Map. REQUIRED." },
+                resource_id: { type: SchemaType.STRING, description: "ID of the resource." },
+                context: { type: SchemaType.STRING, description: "Reason for grounding (e.g. 'Analyzing Example 1.3')" }
+            },
+            required: ["node_id", "context"]
+        }
+    },
+    {
+        name: "clear_grounding",
+        description: "Clears the currently pinned visual evidence. Call this when moving to a completely new topic where the old evidence is distracting.",
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {},
+        }
+    }
 ];
 
 export function initializeCompanion(context: any) {
@@ -107,7 +124,7 @@ export function initializeCompanion(context: any) {
     1. THE ANCHOR LOOP (Staying on Track)
        - Always know which Milestone is active.
        - If the user asks a question RELEVANT to the milestone -> Answer deep.
-       - If the material is in ANOTHER resource -> SWITCH TO IT! Use 'navigate_resource(page, resource_id)'.
+        - If the material is in ANOTHER resource -> SWITCH TO IT! Use 'navigate_resource(page, resource_id)'.
        - If the user DRIFTS (asks off-topic) -> CHECK DRIFT:
          * Small drift? Answer briefly (1-2 sentences) then bridge back.
          * Big drift? Use 'park_topic' tool! Say: "Great point! Let's park that for later so we finish [Current Target] first."
@@ -156,9 +173,9 @@ export function initializeCompanion(context: any) {
     ═══════════════════════════════════════════════════════════
     GROUNDED MULTIMODAL CONTEXT (The CiteKit Flow)
     ═══════════════════════════════════════════════════════════
-    1. **Navigate by Node**: When you call 'navigate_resource(node_id="...")', the system resolves that specific node and attaches the high-res evidence to your context.
-    2. **Sight over Summary**: Use the visual Evidence (fileData) to describe diagrams, read formulas, and confirm fine print. 
-    3. **Zero Hallucination**: If the Map text is enough, use it. If you need to "see" it to be sure, navigate and wait for the fileData in the next turn.
+    1. **Sticky Grounding**: Use 'ground_concept(node_id)' to PIN a document slice to your view.
+    2. **Persistence**: Once pinned, that image stays with you for every turn. You don't need to re-fetch it.
+    3. **Navigation**: Use 'navigate_resource' to scroll the user, but remember it doesn't change what YOU see. Only 'ground_concept' updates your vision.
     4. Speak with the authority of direct observation when evidence is attached.
     `;
 
@@ -178,18 +195,36 @@ export function initializeCompanion(context: any) {
         },
         {
             name: "navigate_resource",
-            description: "Navigates the user's view to a specific page or location in a resource. Use this to grounding explanations.",
+            description: "Navigates the user's view to a specific page or location. PURELY UI SCROLLING. Does NOT fetch new evidence for you to see. Use 'ground_concept' if you need to SEE the content.",
             parameters: {
                 type: SchemaType.OBJECT,
                 properties: {
-                    node_id: { type: SchemaType.STRING, description: "The exact CiteKit Node ID from the Map. PREFERRED." },
-                    page: { type: SchemaType.NUMBER, description: "Page number (Fallback if node_id is unavailable)" },
-                    timestamp: { type: SchemaType.STRING, description: "Timestamp (e.g. '1:30' or '90') for Video/Audio only." },
-                    concept: { type: SchemaType.STRING, description: "The concept being shown (optional context)" },
-                    context: { type: SchemaType.STRING, description: "The concept being shown (optional context)" }, // Alias for concept to match other tools
-                    resource_id: { type: SchemaType.STRING, description: "ID of the resource to switch to. See AVAILABLE RESOURCES list." }
+                    page: { type: SchemaType.NUMBER, description: "Page number to scroll to." },
+                    timestamp: { type: SchemaType.STRING, description: "Timestamp for Video/Audio." },
+                    resource_id: { type: SchemaType.STRING, description: "ID of the resource to switch to." }
                 },
-                required: ["context"]
+                required: ["page"]
+            }
+        },
+        {
+            name: "ground_concept",
+            description: "Fetches and PINS physical evidence (PDF slices, video frames) for a specific concept/node. Once called, you will SEE this evidence in every future turn until you clear it. Call this when starting a new sub-topic.",
+            parameters: {
+                type: SchemaType.OBJECT,
+                properties: {
+                    node_id: { type: SchemaType.STRING, description: "The exact CiteKit Node ID from the Map. REQUIRED." },
+                    resource_id: { type: SchemaType.STRING, description: "ID of the resource." },
+                    context: { type: SchemaType.STRING, description: "Reason for grounding (e.g. 'Analyzing Example 1.3')" }
+                },
+                required: ["node_id", "context"]
+            }
+        },
+        {
+            name: "clear_grounding",
+            description: "Clears the currently pinned visual evidence. Call this when moving to a completely new topic where the old evidence is distracting.",
+            parameters: {
+                type: SchemaType.OBJECT,
+                properties: {},
             }
         },
         // --- Agentic Tools ---
