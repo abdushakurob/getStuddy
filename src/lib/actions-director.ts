@@ -69,6 +69,16 @@ async function handleToolCall(toolCall: any, sessionId: string) {
                         message: "Visual grounding unavailable: This resource lacks a CiteKit map. You cannot 'see' slices of this file. Use the text content in your Master Page Index instead."
                     };
                 }
+
+                if (e.message?.startsWith('AUTO_INGEST_FAILED')) {
+                    return {
+                        type: 'error',
+                        code: 'INGEST_FAILED',
+                        message: `Visual grounding failed due to processing error (${e.message}). I am falling back to text context for NOW. 
+                        
+                        IMPORTANT: This is a temporary failure. If the user asks for visual verification again, PLEASE RETRY this tool. Do not assume the map is permanently missing.`
+                    };
+                }
             }
 
             return {

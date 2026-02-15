@@ -71,6 +71,7 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
 
             // Ingest to generate map with Retries
             let ingestSuccess = false;
+            let lastError: any = null;
             for (let i = 1; i <= 3; i++) {
                 try {
                     console.log(`[CiteKit] Auto-Ingest Attempt ${i}...`);
@@ -78,12 +79,16 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
                     ingestSuccess = true;
                     break;
                 } catch (ingestErr) {
+                    lastError = ingestErr;
                     console.warn(`[CiteKit] Auto-Ingest Attempt ${i} failed:`, ingestErr);
                     if (i < 3) await new Promise(r => setTimeout(r, 1000 * i)); // Backoff
                 }
             }
 
-            if (!ingestSuccess) throw new Error("Auto-Ingest Failed after 3 attempts");
+            if (!ingestSuccess) {
+                console.error("[CiteKit] Auto-Ingest Failed. Proceeding with Text-Only.");
+                throw new Error(`AUTO_INGEST_FAILED: ${lastError?.message || 'Unknown Error'}`);
+            }
 
             mapToUse = client.getMap(resourceId);
 
@@ -103,8 +108,8 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
         if (!exactMatch) {
             // Try lenient case-insensitive match on Label
             const fuzzyMatch = mapToUse.nodes.find((n: any) =>
-                n.label.toLowerCase().includes(nodeId.toLowerCase()) ||
-                n.title?.toLowerCase().includes(nodeId.toLowerCase())
+                (n.label && n.label.toLowerCase().includes(nodeId.toLowerCase())) ||
+                (n.title && n.title.toLowerCase().includes(nodeId.toLowerCase()))
             );
 
             if (fuzzyMatch) {
