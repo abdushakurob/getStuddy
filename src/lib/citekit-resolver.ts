@@ -36,7 +36,8 @@ export async function resolveResourceNode(resourceId: string, nodeId: string) {
     if (!resource.fileUrl) throw new Error("Resource has no file URL");
 
     const baseDir = os.tmpdir();
-    const tempDir = path.join(baseDir, "citekit_resolve");
+    // Use 'citekit_temp' to match gemini.ts and avoid ENOENT issues (library default?)
+    const tempDir = path.join(baseDir, "citekit_temp");
 
     if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
