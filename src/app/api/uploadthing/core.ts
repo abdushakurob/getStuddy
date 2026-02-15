@@ -36,7 +36,7 @@ const handleFile = async ({ file, metadata }: any) => {
         // 2. Trigger Gemini Analysis (Background - Fire and Forget)
         (async () => {
             try {
-                const analysis = await analyzeDocument(file.url, fileType);
+                const analysis = await analyzeDocument(file.url, fileType, resource._id.toString());
 
                 if (analysis) {
                     resource.knowledgeBase = analysis.distilled_content || analysis.summary;
@@ -45,6 +45,9 @@ const handleFile = async ({ file, metadata }: any) => {
                     // Save structured learning data
                     if (analysis.learning_map) {
                         resource.learningMap = analysis.learning_map;
+                    }
+                    if (analysis.citeKitMap) {
+                        resource.citeKitMap = analysis.citeKitMap;
                     }
                     if (analysis.suggested_order) {
                         resource.suggestedOrder = analysis.suggested_order;
