@@ -10,8 +10,9 @@ const tools = [
         parameters: {
             type: SchemaType.OBJECT,
             properties: {
-                page: { type: SchemaType.NUMBER, description: "Page number (For PDF documents only)" },
-                timestamp: { type: SchemaType.STRING, description: "Timestamp (e.g. '1:30' or '90') for Video/Audio only." },
+                node_id: { type: SchemaType.STRING, description: "The exact CiteKit Node ID (e.g. 'chapter1.intro') from the Map. PREFERRED." },
+                page: { type: SchemaType.NUMBER, description: "Page number (Fallback if node_id is unavailable)" },
+                timestamp: { type: SchemaType.STRING, description: "Timestamp for Video/Audio only." },
                 concept: { type: SchemaType.STRING, description: "The concept being shown (optional context)" },
                 context: { type: SchemaType.STRING, description: "The concept being shown (optional context)" },
                 resource_id: { type: SchemaType.STRING, description: "ID of the resource to switch to. See AVAILABLE RESOURCES list." }
@@ -28,14 +29,23 @@ export function initializeCompanion(context: any) {
         ? context.milestones.map((m: any) => `- [${m.status === 'completed' ? 'x' : ' '}] ${m.label} ${m.status === 'active' ? '(CURRENT)' : ''}`).join('\n')
         : "No roadmap yet. Plan the session.";
 
-    // Build PAGE INDEX from learning map for accurate page references
-    const pageIndexText = (context.learningMap && context.learningMap.length > 0)
-        ? context.learningMap.map((unit: any) =>
+    // Build MASTER PAGE INDEX from CiteKit Map (Primary) or Learning Map (Fallback)
+    let pageIndexText = "";
+    if (context.citeKitMap && context.citeKitMap.nodes) {
+        pageIndexText = context.citeKitMap.nodes.map((node: any) => {
+            const pages = node.location?.pages?.join(', ') || 'N/A';
+            const snippet = node.content ? `\n    Content: "${node.content.substring(0, 300)}..."` : "";
+            return `[Page ${pages}] ${node.label}${snippet}`;
+        }).join('\n\n');
+    } else if (context.learningMap && context.learningMap.length > 0) {
+        pageIndexText = context.learningMap.map((unit: any) =>
             `${unit.topic}:\n${(unit.concepts || []).map((c: any) =>
                 `  - ${c.name} → ${c.location || 'Unknown page'}`
             ).join('\n')}`
-        ).join('\n')
-        : "No page index available. Be cautious with page references.";
+        ).join('\n');
+    } else {
+        pageIndexText = "No page index available. Be cautious with page references.";
+    }
 
     const currentMilestone = context.milestones?.find((m: any) => m.status === 'active')
         || context.milestones?.find((m: any) => m.status === 'pending');
@@ -58,10 +68,12 @@ export function initializeCompanion(context: any) {
     ${context.availableResourcesList || "Only current resource available."}
     (IMPORTANT: You must use the EXACT 24-character ID string provided above. Do not use generic names or short numbers like '1' or '39')
 
-    NAVIGATION RULES:
+    NAVIGATION RULES (THE CITEKIT FLOW):
+    - You are grounded by the **CiteKit Map**.
+    - To focus on a concept, use 'navigate_resource' with the **node_id** from the MASTER PAGE INDEX below.
+    - Using 'node_id' is PREFERRED over 'page' as it points to the exact semantic segment identified during ingestion.
     - To jump to a specific timestamp in a video/audio, use 'navigate_resource' with 'timestamp' (e.g. "1:30") and the EXACT 'resource_id'.
-    - To jump to a specific page in a PDF, use 'navigate_resource' with 'page' (e.g. 10) and the EXACT 'resource_id'.
-    - ALWAYS use 'navigate_resource' when you mention a specific location.
+    - ALWAYS use 'navigate_resource' when you mention a specific location or concept.
 
 
     ROADMAP (Your GPS):
@@ -76,11 +88,12 @@ export function initializeCompanion(context: any) {
     (guide = explanatory, challenger = questioning/testing, supporter = encouraging)
 
     ═══════════════════════════════════════════════════════════
-    PAGE INDEX (Use EXACT page numbers from here for navigation!)
+    MASTER PAGE INDEX (CiteKit Nodes - Your source of truth!)
     ═══════════════════════════════════════════════════════════
     ${pageIndexText}
 
-    IMPORTANT: When using navigate_resource, ALWAYS use the page numbers from the PAGE INDEX above.
+    IMPORTANT: When using navigate_resource, ALWAYS prioritize using the **node_id** from the index above.
+    The Node IDs are semantic links to the actual content. Navigating by Node ID ensures the system resolves the EXACT segment you are looking at.
     Do NOT guess or infer page numbers from the knowledge base text. The PAGE INDEX is the source of truth.
 
     ═══════════════════════════════════════════════════════════
@@ -140,8 +153,13 @@ export function initializeCompanion(context: any) {
     - **NO SILENT TOOLS (CRITICAL RULE)**: You MUST ALWAYS provide a text message alongside ANY tool call. A tool call without text is a CRITICAL ERROR. Always explain what you're doing and why BEFORE or WITH the tool call. Example: "Let me take you to Page 14 where the Endowment Effect is defined..." + navigate_resource call.
     - **CODE EXECUTION**: Use \`run_code\` to demonstrate Python concepts. The user can see the output!
 
-    ALREADY COVERED:
-    ${context.conceptsCovered?.map((c: any) => `• ${c.concept} (${c.level})`).join('\n') || 'Starting fresh'}
+    ═══════════════════════════════════════════════════════════
+    GROUNDED MULTIMODAL CONTEXT (The CiteKit Flow)
+    ═══════════════════════════════════════════════════════════
+    1. **Navigate by Node**: When you call 'navigate_resource(node_id="...")', the system resolves that specific node and attaches the high-res evidence to your context.
+    2. **Sight over Summary**: Use the visual Evidence (fileData) to describe diagrams, read formulas, and confirm fine print. 
+    3. **Zero Hallucination**: If the Map text is enough, use it. If you need to "see" it to be sure, navigate and wait for the fileData in the next turn.
+    4. Speak with the authority of direct observation when evidence is attached.
     `;
 
     // Add new tools to the toolset
@@ -159,19 +177,17 @@ export function initializeCompanion(context: any) {
             }
         },
         {
-            name: "navigate_resource",
             description: "Navigates the user's view to a specific page or location in a resource. Use this to grounding explanations.",
             parameters: {
                 type: SchemaType.OBJECT,
                 properties: {
-                    page: { type: SchemaType.NUMBER, description: "Page number (For PDF documents only)" },
+                    node_id: { type: SchemaType.STRING, description: "The exact CiteKit Node ID from the Map. PREFERRED." },
+                    page: { type: SchemaType.NUMBER, description: "Page number (Fallback if node_id is unavailable)" },
                     timestamp: { type: SchemaType.STRING, description: "Timestamp (e.g. '1:30' or '90') for Video/Audio only." },
                     concept: { type: SchemaType.STRING, description: "The concept being shown (optional context)" },
                     context: { type: SchemaType.STRING, description: "The concept being shown (optional context)" }, // Alias for concept to match other tools
                     resource_id: { type: SchemaType.STRING, description: "ID of the resource to switch to. See AVAILABLE RESOURCES list." }
                 },
-                // require one of page or timestamp? schema doesn't support ONE-OF easily.
-                // make none required, or handle in prompting.
                 required: ["context"]
             }
         },
@@ -256,7 +272,7 @@ export function initializeCompanion(context: any) {
 
 export async function sendCompanionMessage(
     model: any,
-    message: string,
+    message: string | any[],
     history: any[]
 ) {
     try {
@@ -333,10 +349,11 @@ export async function sendCompanionMessage(
             const fallbackParts: string[] = [];
             for (const fc of functionCalls) {
                 if (fc.name === 'navigate_resource') {
+                    const node = fc.args?.node_id;
                     const page = fc.args?.page;
                     const ts = fc.args?.timestamp;
                     const ctx = fc.args?.context || fc.args?.concept || '';
-                    fallbackParts.push(`Let me take you to ${page ? `Page ${page}` : ts || 'the relevant section'}${ctx ? ` — ${ctx}` : ''}.`);
+                    fallbackParts.push(`Let me take you to ${node ? `Node: ${node}` : page ? `Page ${page}` : ts || 'the relevant section'}${ctx ? ` — ${ctx}` : ''}.`);
                 } else if (fc.name === 'update_milestone') {
                     fallbackParts.push(`${fc.args?.status === 'completed' ? '✅ Completed' : '▶️ Starting'}: **${fc.args?.label}**`);
                 } else if (fc.name === 'park_topic') {

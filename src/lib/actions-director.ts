@@ -5,6 +5,7 @@ import dbConnect from '@/lib/db';
 import Session from '@/models/Session';
 import { initializeCompanion, sendCompanionMessage } from './director-agent';
 import { revalidatePath } from 'next/cache';
+import { findNodeByPage, resolveResourceNode } from '@/lib/citekit-resolver';
 
 // Handle tool calls from Companion Agent
 async function handleToolCall(toolCall: any, sessionId: string) {
@@ -12,12 +13,47 @@ async function handleToolCall(toolCall: any, sessionId: string) {
 
     switch (name) {
         case 'navigate_resource':
+            let resolvedUrl = null;
+            try {
+                if (args.resource_id) {
+                    let targetNodeId = args.node_id;
+
+                    // Fallback to page-based lookup only if node_id is missing
+                    if (!targetNodeId && args.page) {
+                        const pageNum = parseInt(args.page);
+                        targetNodeId = await findNodeByPage(args.resource_id, pageNum);
+                    }
+
+                    // Fallback to timestamp-based lookup for Video/Audio
+                    if (!targetNodeId && args.timestamp) {
+                        let seconds = 0;
+                        if (typeof args.timestamp === 'string' && args.timestamp.includes(':')) {
+                            const [m, s] = args.timestamp.split(':').map(Number);
+                            seconds = (m * 60) + s;
+                        } else {
+                            seconds = parseInt(args.timestamp);
+                        }
+                        const { findNodeByTimestamp } = await import('@/lib/citekit-resolver');
+                        targetNodeId = await findNodeByTimestamp(args.resource_id, seconds);
+                    }
+
+                    if (targetNodeId) {
+                        console.log(`[CiteKit Flow] Resolving Node: ${targetNodeId}`);
+                        resolvedUrl = await resolveResourceNode(args.resource_id, targetNodeId);
+                    }
+                }
+            } catch (e) {
+                console.error("[handleToolCall] Resolution failed:", e);
+            }
+
             return {
                 type: 'navigation',
                 page: args.page,
-                resourceId: args.resource_id, // Pass resource ID if present
-                timestamp: args.timestamp, // Or use page for timestamp if unified
-                context: args.context || args.concept
+                nodeId: args.node_id,
+                resourceId: args.resource_id,
+                timestamp: args.timestamp,
+                context: args.context || args.concept,
+                resolvedUrl // Include for UI/Agent context
             };
 
         case 'explain_concept':
@@ -146,7 +182,7 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
     const resources = await Resource.find({
         courseId: studySession.courseId,
         status: 'ready'
-    }).select('title type fileUrl knowledgeBase summary learningMap suggestedOrder totalConcepts').lean();
+    }).select('title type fileUrl knowledgeBase summary learningMap citeKitMap suggestedOrder totalConcepts').lean();
 
     // Find primary resource: Prioritize currentResourceId, then PDF, then first available
     let primaryResource;
@@ -183,6 +219,7 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
 
         // Structured learning data
         learningMap: combinedLearningMap,
+        citeKitMap: primaryResource?.citeKitMap,
         suggestedOrder: combinedSuggestedOrder,
         totalConcepts,
 
@@ -212,32 +249,63 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
     const model = await initializeCompanion(context);
 
     // Build chat history for Gemini
-    const rawHistory = studySession.transcript.slice(0, -1).map((t: any) => {
+    let lastResolvedUrl: string | null = null;
+
+    const history = studySession.transcript.slice(0, -1).map((t: any) => {
         let textContent = t.content || '';
 
-        // Inject tool calls into history so Agent knows what it did
+        // Inject tool calls info into text to preserve continuity
         if (t.toolCalls && t.toolCalls.length > 0) {
             const toolSummary = t.toolCalls.map((tc: any) => `[Action: ${tc.tool}]`).join(' ');
             textContent = textContent ? `${textContent}\n${toolSummary}` : toolSummary;
         }
 
-        // Ensure non-empty text for API
-        if (!textContent || textContent.trim() === '') {
-            textContent = '[User Action]'; // Fallback
+        const parts: any[] = [{ text: textContent || '[Action]' }];
+
+        // Check for resolved evidence URL from previous tools in this turn
+        if (t.toolResults) {
+            const navResult = t.toolResults.find((r: any) => r.type === 'navigation' && r.resolvedUrl);
+            if (navResult) {
+                lastResolvedUrl = navResult.resolvedUrl;
+            }
+        }
+
+        // If we have a resolved URL, attach it to the turns moving forward (or at least the turn it was generated in)
+        // Gemini allows multiple parts in a message.
+        if (lastResolvedUrl && t.role === 'assistant') {
+            parts.push({
+                fileData: {
+                    fileUri: lastResolvedUrl,
+                    mimeType: "application/pdf"
+                }
+            });
+            // We can clear it after attaching so it doesn't clutter every turn, 
+            // OR keep it for persistent context. Let's keep it for now.
         }
 
         return {
             role: t.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: textContent }]
+            parts
         };
     });
 
-    // Gemini requires first message to be from 'user'
-    const firstUserIndex = rawHistory.findIndex((m: any) => m.role === 'user');
-    const history = firstUserIndex >= 0 ? rawHistory.slice(firstUserIndex) : [];
+    // Also inject the most recent evidence into the CURRENT message parts
+    const currentMessageParts: any[] = [{ text: userMessage }];
+    if (lastResolvedUrl) {
+        currentMessageParts.push({
+            fileData: {
+                fileUri: lastResolvedUrl,
+                mimeType: "application/pdf"
+            }
+        });
+    }
 
-    // Send message to Companion
-    const response = await sendCompanionMessage(model, userMessage, history);
+    // Gemini requires first message to be from 'user'
+    const firstUserIndex = history.findIndex((m: any) => m.role === 'user');
+    const finalHistory = firstUserIndex >= 0 ? history.slice(firstUserIndex) : [];
+
+    // Send message to Companion with multimodal parts
+    const response = await sendCompanionMessage(model, currentMessageParts as any, finalHistory);
 
     // Process tool calls
     // Map returns promises now because handleToolCall is async

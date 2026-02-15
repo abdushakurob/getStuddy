@@ -239,7 +239,7 @@ export async function retryResourceAnalysis(resourceId: string) {
                 const mimeType = mimeTypeMap[resource.type] || 'application/pdf';
 
                 console.log(`[Retry] Processing Document: ${resource.fileUrl} (${mimeType})`);
-                analysis = await analyzeDocument(resource.fileUrl, mimeType);
+                analysis = await analyzeDocument(resource.fileUrl, mimeType, resource._id.toString());
             }
 
             if (analysis) {
@@ -249,6 +249,7 @@ export async function retryResourceAnalysis(resourceId: string) {
                     resourceToUpdate.knowledgeBase = analysis.distilled_content || analysis.summary;
                     resourceToUpdate.summary = analysis.summary;
                     resourceToUpdate.learningMap = analysis.learning_map;
+                    resourceToUpdate.citeKitMap = analysis.citeKitMap; // Add this
                     resourceToUpdate.suggestedOrder = analysis.suggested_order;
                     resourceToUpdate.totalConcepts = analysis.total_concepts;
                     // Only update type if it was missing or generic
@@ -328,7 +329,7 @@ export async function remapResource(resourceId: string) {
                 const mimeType = mimeTypeMap[resource.type] || 'application/pdf';
 
                 console.log(`[Remap] Re-analyzing Document: ${resource.fileUrl} (${mimeType})`);
-                analysis = await analyzeDocument(resource.fileUrl, mimeType);
+                analysis = await analyzeDocument(resource.fileUrl, mimeType, resource._id.toString());
             }
 
             if (analysis) {
@@ -337,6 +338,7 @@ export async function remapResource(resourceId: string) {
                     resourceToUpdate.knowledgeBase = analysis.distilled_content || analysis.summary;
                     resourceToUpdate.summary = analysis.summary;
                     resourceToUpdate.learningMap = analysis.learning_map;
+                    resourceToUpdate.citeKitMap = analysis.citeKitMap; // Add this
                     resourceToUpdate.suggestedOrder = analysis.suggested_order;
                     resourceToUpdate.totalConcepts = analysis.total_concepts;
                     if (analysis.document_type) {

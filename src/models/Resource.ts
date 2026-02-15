@@ -29,6 +29,7 @@ export interface IResource extends Document {
 
     // Structured learning data
     learningMap?: ILearningTopic[];
+    citeKitMap?: any; // Stores the CiteKit JSON map
     suggestedOrder?: string[];
     totalConcepts?: number;
     documentType?: 'educational' | 'technical' | 'literary' | 'research' | 'reference' | 'academic_planning' | 'business' | 'video_lecture' | 'other';
@@ -66,6 +67,7 @@ const ResourceSchema = new Schema<IResource>({
 
     // Structured learning data
     learningMap: [LearningTopicSchema],
+    citeKitMap: { type: Schema.Types.Mixed }, // New field
     suggestedOrder: [String],
     totalConcepts: Number,
     documentType: { type: String, enum: ['educational', 'technical', 'literary', 'research', 'reference', 'academic_planning', 'business', 'video_lecture', 'other'] },

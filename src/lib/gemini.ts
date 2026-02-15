@@ -1,6 +1,11 @@
 
 import { SchemaType } from "@google/generative-ai";
 import { genAI, AI_MODEL } from "./ai-config";
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import { v4 as uuidv4 } from 'uuid';
+import { CiteKitClient } from 'citekit';
 
 // Separate model for document analysis (no tools, JSON output)
 const analysisModel = genAI.getGenerativeModel({
@@ -69,7 +74,90 @@ async function urlToGenerativePart(url: string, mimeType: string) {
     };
 }
 
-export async function analyzeDocument(fileUrl: string, mimeType: string = "application/pdf") {
+// CiteKit-integrated wrapper
+export async function analyzeDocument(fileUrl: string, mimeType: string = "application/pdf", resourceId?: string) {
+    let citeKitMap = null;
+
+    // 1. Try CiteKit Ingestion (Deep structural mapping)
+    try {
+        const tempId = resourceId || uuidv4();
+        const tempDir = path.join(os.tmpdir(), 'citekit_temp');
+        const storageDir = path.join(os.tmpdir(), 'citekit_maps');
+
+        if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+        if (!fs.existsSync(storageDir)) fs.mkdirSync(storageDir, { recursive: true });
+
+        const ext = (mimeType === 'application/pdf' || mimeType.includes('pdf')) ? '.pdf' : '.bin';
+        const tempFilePath = path.join(tempDir, `${tempId}${ext}`);
+
+        const response = await fetch(fileUrl);
+        if (response.ok) {
+            const buffer = await response.arrayBuffer();
+            fs.writeFileSync(tempFilePath, Buffer.from(buffer));
+
+            const client = new CiteKitClient({
+                storageDir: storageDir,
+                apiKey: process.env.GEMINI_API_KEY
+            });
+
+            console.log(`[CiteKit] Ingesting ${tempFilePath}...`);
+            // Detect type for CiteKit
+            const ckType = mimeType.includes('pdf') ? 'document' : (mimeType.includes('video') ? 'video' : 'image');
+
+            await client.ingest(tempFilePath, ckType as any, { resourceId: tempId });
+
+            const mapPath = path.join(storageDir, `${tempId}.json`);
+            if (fs.existsSync(mapPath)) {
+                citeKitMap = JSON.parse(fs.readFileSync(mapPath, 'utf-8'));
+                console.log(`[CiteKit] Map generated: ${citeKitMap.nodes?.length || 0} nodes`);
+            }
+
+            try { fs.unlinkSync(tempFilePath); } catch (_) { }
+        }
+    } catch (e) {
+        console.error("[CiteKit] Ingestion failed (Double-armour mode: continuing with Gemini):", e);
+    }
+
+    // 2. Standard Gemini Analysis (The high-level semantic summary)
+    // We ALWAYS run this now to ensure no breakage in planning logic
+    const analysis = await _analyzeDocumentCore(fileUrl, mimeType);
+
+    if (analysis) {
+        return {
+            ...analysis,
+            citeKitMap // Double Armour: Summary + Precision Map
+        };
+    }
+    return null;
+}
+
+/**
+ * Transforms a CiteKit Map into Studdy's structured LearningMap format.
+ */
+function buildLearningMapFromCiteKit(map: any) {
+    // Group nodes by their parent prefix (very simple grouping for MVP)
+    const groups: { [key: string]: any[] } = {};
+
+    map.nodes.forEach((node: any) => {
+        const parts = node.id.split('.');
+        const parent = parts.length > 1 ? parts[0] : "General";
+        if (!groups[parent]) groups[parent] = [];
+        groups[parent].push({
+            name: node.title,
+            location: `Page ${node.location?.pages?.[0] || '?'}${node.id ? ` (Node: ${node.id})` : ''}`,
+            difficulty: "intermediate",
+            key_points: [node.summary]
+        });
+    });
+
+    return Object.entries(groups).map(([topic, concepts]) => ({
+        topic: topic.replace(/([A-Z])/g, ' $1').trim(), // Format "Chapter1" to "Chapter 1"
+        concepts
+    }));
+}
+
+// Core Gemini analysis (internal)
+async function _analyzeDocumentCore(fileUrl: string, mimeType: string = "application/pdf") {
     const prompt = `
     You are Studdy, an AI companion that helps users understand and learn from any document.
     Analyze the attached document thoroughly.
