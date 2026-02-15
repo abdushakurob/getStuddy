@@ -52,7 +52,7 @@ export function initializeCompanion(context: any) {
         pageIndexText = context.citeKitMap.nodes.map((node: any) => {
             const pages = node.location?.pages?.join(', ') || 'N/A';
             const snippet = node.content ? `\n    Content: "${node.content.substring(0, 300)}..."` : "";
-            return `[Page ${pages}] ${node.label}${snippet}`;
+            return `[PDF Page ${pages}] ${node.label}${snippet}`;
         }).join('\n\n');
     } else if (context.learningMap && context.learningMap.length > 0) {
         pageIndexText = context.learningMap.map((unit: any) =>
@@ -168,8 +168,8 @@ export function initializeCompanion(context: any) {
     - **TONE**: Collaborative, encouraging, "We". "Let's figure this out," "Look what I found in the transcript..."
     - **navigation**: Use \`navigate_resource\` to physically bringing the user to the reference point. Don't just talk about it, SHOW IT.
     - **NO SILENT TOOLS (CRITICAL RULE)**: You MUST ALWAYS provide a text message alongside ANY tool call. A tool call without text is a CRITICAL ERROR. Always explain what you're doing and why BEFORE or WITH the tool call. Example: "Let me take you to Page 14 where the Endowment Effect is defined..." + navigate_resource call.
-    - **CODE EXECUTION**: Use \`run_code\` to demonstrate Python concepts. The user can see the output!
-
+    - **CODE EXECUTION**: Use \`run_code\` ONLY if the user asks for a code demo or if the source material is explicitly about Programming/Computer Science. DO NOT write Python scripts for Math/Chemistry unless asked.
+    
     ═══════════════════════════════════════════════════════════
     GROUNDED MULTIMODAL CONTEXT (The CiteKit Flow)
     ═══════════════════════════════════════════════════════════
@@ -185,7 +185,7 @@ export function initializeCompanion(context: any) {
         ...tools, // Includes navigate_resource, ground_concept, clear_grounding
         {
             name: "run_code",
-            description: "Executes Python code and returns the output to the user. Use this to demonstrate concepts live.",
+            description: "Executes Python code. use ONLY IF the user explicitly asks for code or the subject is Computer Science. Do not use for general visualization.",
             parameters: {
                 type: SchemaType.OBJECT,
                 properties: {

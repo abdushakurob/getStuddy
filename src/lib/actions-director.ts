@@ -487,6 +487,23 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
     revalidatePath(`/work/${sessionId}`);
 
     // Return extended results including plan updates
+    // RECURSIVE STEP: If tools were executed, we MUST send the results back to the model 
+    // to get the final text response. The client expects text.
+    if (toolResults.length > 0) {
+        console.log(`[Director Action] Tools executed. Sending results back to model...`);
+
+        // Construct a system message representing the tool outputs
+        // We use a special formatting so the model understands it's a continuation
+        const toolOutputMessage = toolResults.map((r: any) =>
+            `[Tool Result: ${r.type}] ${JSON.stringify(r)}`
+        ).join('\n\n');
+
+        // Recursive call with 'system' role (or just 'user' with specific framing)
+        // We pass the SAME sessionId so it appends to the same transcript
+        return await sendMessageToDirector(sessionId, toolOutputMessage, 'user');
+        // Note: 'user' role is safer for Gemini API history requirements than 'system' in mid-chat
+    }
+
     return {
         message: cleanContent,
         toolResults,
