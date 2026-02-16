@@ -178,11 +178,14 @@ export function initializeCompanion(context: any) {
     GROUNDED MULTIMODAL CONTEXT (The CiteKit Flow)
     ═══════════════════════════════════════════════════════════
     1. **Autonomy vs Screenshots**: Any image or video frame in your context is **RETRIEVED FROM THE LIBRARY** by you using CiteKit. 
-    2. **THE USER CANNOT SEND IMAGES**: The user has no way to attach or share screenshots. If you see an image in your context, it is because YOU called a tool or the SYSTEM provided a grounded reference.
-    3. **NO THANKING**: Do NOT thank the user for images. Do NOT say "the screenshot you shared." Instead say: "I've pulled up the reference for you" or "Looking at the document..."
-    4. **Visual Memory**: Once you call \`ground_concept(node_id)\`, that evidence is "PINNED" to your view. You can see it for the rest of the conversation. 
-    5. **Hierarchy Awareness**: If you already have a parent node pinned (e.g., Chapter 1), you can see its sub-concepts (e.g., Section 1.2). If the user asks about a sub-concept that is ALREADY VISIBLE in your current grounding, do NOT call \`ground_concept\` again. Just point to what you already see.
-    6. **Role Attribution**: You are the "Eyes" of the user. You look into the books so they don't have to.
+    2. **THE USER CANNOT SEND IMAGES**: The user has no physical way to attach or share screenshots. If you see an image in your context, it is because YOU called a tool or the SYSTEM provided a reference.
+    3. **NO THANKING**: Do NOT thank the user for images. Do NOT say "the screenshot you shared." Instead say: "I've pulled up the reference..."
+    4. **ONE ACTION PER TURN**: To keep the focus on the learner, perform at most **ONE** major UI action (navigation or grounding) per response. Do not chain multiple jumps.
+    5. **INTERNAL TOOLS**: You will see messages like \`[INTERNAL_TOOL_RESULT: ...]\`. These are for your internal logic. Do NOT mention them or "apologize" for them to the user. Just use the info to help the learner.
+    6. **Wait for Input**: After performing a tool call and explaining it, STOP and wait for the user. Do not "think out loud" in multiple consecutive turns.
+    7. **Visual Memory**: Once you call \`ground_concept(node_id)\`, that evidence is "PINNED" to your view. You can see it for the rest of the conversation. 
+    8. **Hierarchy Awareness**: If you already have a parent node pinned (e.g., Chapter 1), you can see its sub-concepts (e.g., Section 1.2). If the user asks about a sub-concept that is ALREADY VISIBLE in your current grounding, do NOT call \`ground_concept\` again. Just point to what you already see.
+    9. **Role Attribution**: You are the "Eyes" of the user. You look into the books so they don't have to.
 
     ═══════════════════════════════════════════════════════════
     UI INTERACTIVITY (Clickable Pages)
@@ -290,12 +293,13 @@ export function initializeCompanion(context: any) {
 export async function sendCompanionMessage(
     model: any,
     message: string | any[],
-    history: any[]
+    history: any[],
+    toolHandler?: (fc: any) => Promise<any>
 ) {
     try {
         const chat = model.startChat({ history });
         const result = await chat.sendMessage(message);
-        const response = result.response;
+        let response = result.response;
 
         // Check for safety blocking
         if (response.promptFeedback?.blockReason) {
@@ -307,64 +311,64 @@ export async function sendCompanionMessage(
             };
         }
 
-        // Extract text from response parts
+        // State for multi-turn extraction
         let text = "";
-        const candidateParts = response.candidates?.[0]?.content?.parts || [];
-        for (const part of candidateParts) {
-            if (part.text) text += part.text;
-        }
+        let allFunctionCalls: any[] = [];
+        let currentResponse = response;
 
-        // Extract tool calls
-        let functionCalls: any[] = [];
-        try {
-            functionCalls = response.functionCalls() || [];
-        } catch (e) {
-            console.log("No tool calls or error parsing them:", e);
-        }
+        // --- Multi-Turn Function Loop ---
+        // This handles cases where the model needs to see tool results before finishing its thought.
+        let loopDepth = 0;
+        const MAX_LOOP = 2;
 
-        // Multi-turn function calling: if the model returned function calls
-        // but no text, send the function results back to get a text response.
-        // This is the standard Gemini function calling flow.
-        if (!text.trim() && functionCalls.length > 0) {
-            console.log("[Companion] Model returned function calls without text, sending results back for follow-up...");
-
-            // Build function response parts to send back
-            const functionResponseParts = functionCalls.map((fc: any) => ({
-                functionResponse: {
-                    name: fc.name,
-                    response: { success: true, result: `Tool ${fc.name} executed successfully.` }
+        while (loopDepth <= MAX_LOOP) {
+            // 1. Extract text from current turn
+            const turnParts = currentResponse.candidates?.[0]?.content?.parts || [];
+            for (const part of turnParts) {
+                if (part.text) {
+                    text += (text ? "\n\n" : "") + part.text;
                 }
+            }
+
+            // 2. Extract tool calls from current turn
+            let turnCalls: any[] = [];
+            try {
+                turnCalls = currentResponse.functionCalls() || [];
+            } catch (_) { }
+
+            if (turnCalls.length === 0) break; // No more tools, stop.
+
+            // 3. Accumulate calls for the caller (actions-director)
+            allFunctionCalls.push(...turnCalls);
+
+            // 4. Execute tools and prepare responses
+            // We use the toolHandler if provided, otherwise a dummy success
+            const toolResults = await Promise.all(turnCalls.map(async (fc: any) => {
+                const result = toolHandler ? await toolHandler(fc) : { success: true };
+                return {
+                    functionResponse: {
+                        name: fc.name,
+                        response: result
+                    }
+                };
             }));
 
+            // 5. Send results back to model for follow-up
             try {
-                // Send function results back — model will generate its text response
-                const followUpResult = await chat.sendMessage(functionResponseParts);
-                const followUpResponse = followUpResult.response;
-
-                // Extract text from the follow-up
-                const followUpParts = followUpResponse.candidates?.[0]?.content?.parts || [];
-                for (const part of followUpParts) {
-                    if (part.text) text += part.text;
-                }
-
-                // Check if the follow-up also has function calls (chain them)
-                try {
-                    const moreCalls = followUpResponse.functionCalls() || [];
-                    if (moreCalls.length > 0) {
-                        functionCalls = [...functionCalls, ...moreCalls];
-                    }
-                } catch (_) { }
-
-            } catch (followUpError) {
-                console.error("[Companion] Follow-up after function calls failed:", followUpError);
+                const followUpResult = await chat.sendMessage(toolResults);
+                currentResponse = followUpResult.response;
+                loopDepth++;
+            } catch (e) {
+                console.error("[Companion] Tool follow-up failed:", e);
+                break;
             }
         }
 
         // Final fallback: if still no text after the multi-turn loop,
         // generate a contextual message from the tool call arguments
-        if (!text.trim() && functionCalls.length > 0) {
+        if (!text.trim() && allFunctionCalls.length > 0) {
             const fallbackParts: string[] = [];
-            for (const fc of functionCalls) {
+            for (const fc of allFunctionCalls) {
                 if (fc.name === 'navigate_resource') {
                     const node = fc.args?.node_id;
                     const page = fc.args?.page;
@@ -382,8 +386,8 @@ export async function sendCompanionMessage(
 
         return {
             text: text,
-            toolCalls: functionCalls || [],
-            raw: response
+            toolCalls: allFunctionCalls,
+            raw: currentResponse
         };
     } catch (error: any) {
         console.error("Gemini API Error:", error);

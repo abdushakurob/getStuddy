@@ -421,8 +421,8 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
             } else {
                 // Small File -> Inline Base64 (Faster)
                 console.log(`[CiteKit Hybrid] Evidence is small (${sizeMB.toFixed(2)}MB). Using Inline Base64.`);
-                // Add a loud label to prevent user-attribution hallucination
-                currentMessageParts.push({ text: `[SYSTEM_OBSERVATION: Attaching visual reference for ${studySession.activeGroundingNodeId || 'current context'}]` });
+                // Add a hyper-explicit label to stop user-attribution hallucination
+                currentMessageParts.push({ text: `[INTERNAL_SYSTEM_GROUNDING: This image is retrieved from YOUR library access. The USER DID NOT SEND THIS. Do NOT say 'the screenshot you shared'. Focus: ${studySession.activeGroundingNodeId || 'current focus'}]` });
                 currentMessageParts.push({
                     inlineData: {
                         data: evidenceBuffer.toString('base64'),
@@ -441,7 +441,15 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
         }
     }
 
-    const response = await sendCompanionMessage(model, currentMessageParts as any, finalHistory);
+    // --- Improved Grounding Loop (One-Turn Architecture) ---
+    // We pass handleToolCall as a callback so the model can see REAL results
+    // without us having to recurse and push technician messages to the transcript.
+    const response = await sendCompanionMessage(
+        model,
+        currentMessageParts as any,
+        finalHistory,
+        async (fc: any) => await handleToolCall(fc, sessionId, studySession)
+    );
 
     // Process tool calls
     // Map returns promises now because handleToolCall is async
@@ -553,24 +561,6 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
     await studySession.save();
     revalidatePath(`/work/${sessionId}`);
 
-    // Return extended results including plan updates
-    // RECURSIVE STEP: If tools were executed, we MUST send the results back to the model 
-    // to get the final text response. The client expects text.
-    if (toolResults.length > 0) {
-        console.log(`[Director Action] Tools executed. Sending results back to model...`);
-
-        // Construct a system message representing the tool outputs
-        // We use a special formatting so the model understands it's a continuation
-        const toolOutputMessage = toolResults.map((r: any) =>
-            `[Tool Result: ${r.type}] ${JSON.stringify(r)}`
-        ).join('\n\n');
-
-        // Recursive call with 'system' role (or just 'user' with specific framing)
-        // We pass the SAME sessionId so it appends to the same transcript
-        return await sendMessageToDirector(sessionId, toolOutputMessage, 'user');
-        // Note: 'user' role is safer for Gemini API history requirements than 'system' in mid-chat
-    }
-
     return {
         message: cleanContent,
         toolResults,
@@ -582,8 +572,6 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
             estimatedTotal: context.totalConcepts || studySession.progress.estimatedTotal,
             isComplete: studySession.progress.isComplete
         } : undefined,
-        // We could return updated milestones here for client, 
-        // but client should re-fetch session or use server actions to refresh logic
         planAdjustment: milestonesUpdated ? { type: 'milestone_change' } : null
     };
 }
