@@ -15,7 +15,11 @@ const utapi = new UTApi();
  * Resolves a CiteKit node within a resource, with cloud-based caching.
  * Mode: 'physical' (slices file) or 'virtual' (metadata timestamps/pages).
  */
-export async function resolveResourceNode(resourceId: string, nodeId: string, options: { virtual?: boolean } = {}) {
+export async function resolveResourceNode(
+    resourceId: string,
+    nodeId: string,
+    options: { virtual?: boolean, activeParentId?: string } = {}
+) {
     await dbConnect();
 
     // 0. Noise Cleaning: Strip [PDF Page ...] prefix immediately
@@ -33,6 +37,13 @@ export async function resolveResourceNode(resourceId: string, nodeId: string, op
     if (cachedNode) {
         console.log(`[CiteKit] Cache HIT for ${resourceId}/${nodeId}: ${cachedNode.url}`);
         return cachedNode.url;
+    }
+
+    // --- HIERARCHICAL REFOLDING (Smart Redundancy fix) ---
+    if (options.activeParentId && (cleanNodeId.startsWith(options.activeParentId + '.') || cleanNodeId === options.activeParentId)) {
+        console.log(`[CiteKit] REFOLD HIT: Node '${cleanNodeId}' is child of active parent '${options.activeParentId}'. Reusing context.`);
+        const refoldUrl = `virtual:refold://${options.activeParentId}`;
+        return refoldUrl;
     }
 
     // 2. Cache MISS: Proceed with Resolution
@@ -140,8 +151,8 @@ export async function resolveResourceNode(resourceId: string, nodeId: string, op
         const evidence = await client.resolve(resourceId, targetNodeId, { virtual: useVirtual });
 
         if (useVirtual) {
-            // Virtual Resolution: Store the address pointer (e.g., video://...#t=10,20)
-            const virtualUrl = `virtual://${evidence.address || nodeId}`;
+            // Virtual Resolution: Store the address pointer (e.g., virtual:video://...#t=10,20)
+            const virtualUrl = `virtual:${evidence.address || nodeId}`;
 
             await ResolvedNode.create({
                 resourceId,

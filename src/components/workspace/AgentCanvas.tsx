@@ -138,6 +138,11 @@ export default function AgentCanvas({
         try {
             const response = await sendMessageToDirector(sessionId, message, 'user', currentResource?._id);
 
+            if (!response) {
+                setCompanionStatus("No response from assistant");
+                return;
+            }
+
             setTranscript(prev => [...prev, {
                 role: 'assistant',
                 content: response.message,
@@ -236,6 +241,11 @@ export default function AgentCanvas({
 
         try {
             const response = await handleActionIntent(sessionId, intent);
+
+            if (!response) {
+                setCompanionStatus("Action failed");
+                return;
+            }
 
             setTranscript(prev => [...prev, {
                 role: 'assistant',

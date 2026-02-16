@@ -59,6 +59,10 @@ const handleFile = async ({ file, metadata }: any) => {
                         resource.documentType = analysis.document_type;
                     }
 
+                    if (analysis.contentHash) {
+                        resource.contentHash = analysis.contentHash;
+                    }
+
                     resource.status = 'ready';
                     resource.errorMessage = undefined;
                 } else {

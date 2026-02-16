@@ -37,6 +37,7 @@ export interface IResource extends Document {
     status: 'processing' | 'ready' | 'error';
     errorMessage?: string;
     retryCount: number;
+    contentHash?: string; // SHA-256 for deduplication
     createdAt: Date;
 }
 
@@ -75,6 +76,7 @@ const ResourceSchema = new Schema<IResource>({
     status: { type: String, enum: ['processing', 'ready', 'error'], default: 'processing' },
     errorMessage: { type: String },
     retryCount: { type: Number, default: 0 },
+    contentHash: { type: String, index: true },
 }, { timestamps: true });
 
 export default mongoose.models.Resource || mongoose.model<IResource>('Resource', ResourceSchema);

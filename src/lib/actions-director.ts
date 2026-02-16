@@ -29,7 +29,7 @@ async function fetchEvidenceBuffer(url: string): Promise<{ buffer: Buffer, mimeT
     }
 }
 
-async function handleToolCall(toolCall: any, sessionId: string) {
+async function handleToolCall(toolCall: any, sessionId: string, studySession: any) {
     const { name, args } = toolCall;
 
     switch (name) {
@@ -52,7 +52,9 @@ async function handleToolCall(toolCall: any, sessionId: string) {
                 const targetNodeId = args.node_id;
 
                 if (targetNodeId && args.resource_id) {
-                    pinnedUrl = await resolveResourceNode(args.resource_id, targetNodeId);
+                    pinnedUrl = await resolveResourceNode(args.resource_id, targetNodeId, {
+                        activeParentId: studySession.activeGroundingNodeId
+                    });
                 }
 
                 // 2. Persist to Session (Sticky)
@@ -368,19 +370,27 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
             let sourceUrl = studySession.activeGroundingUrl;
             let groundingHint = "";
 
-            // 1. Handle Virtual Mode
-            if (studySession.activeGroundingUrl.startsWith('virtual://')) {
-                const { ResolvedNode } = await import('@/models/ResolvedNode');
-                const vNode = await ResolvedNode.findOne({
-                    resourceId: studySession.currentResourceId,
-                    nodeId: studySession.activeGroundingNodeId
-                });
+            if (studySession.activeGroundingUrl.startsWith('virtual:refold://') || studySession.activeGroundingUrl.startsWith('virtual://refold/')) {
+                // --- HIERARCHICAL REFOLDING (Zero-Upload) ---
+                const parentId = studySession.activeGroundingUrl.replace('virtual:refold://', '').replace('virtual://refold/', '');
+                console.log(`[CiteKit Refold] Using active parent context: ${parentId}`);
 
-                if (vNode && vNode.metadata?.isVirtual) {
-                    sourceUrl = vNode.metadata.originalFileUrl;
-                    const loc = vNode.metadata.location;
-                    groundingHint = `[GROUNDING CONTEXT: Focus on ${loc.modality === 'video' ? `timestamps ${loc.start}-${loc.end}s` : (loc.pages ? `pages ${loc.pages.join(', ')}` : `this section`)}]`;
-                }
+                groundingHint = `[AUTOMATED REFERENCE: Focusing on ${studySession.activeGroundingNodeId}. Note: This is a sub-section of the ${parentId} context already visible above.]`;
+                // Skip physical processing - we reuse the previous turn's vision
+                currentMessageParts.push({ text: groundingHint });
+                return; // EXIT EARLY: No need to upload anything
+            }
+
+            const { ResolvedNode } = await import('@/models/ResolvedNode');
+            const vNode = await ResolvedNode.findOne({
+                resourceId: studySession.currentResourceId,
+                nodeId: studySession.activeGroundingNodeId
+            });
+
+            if (vNode && vNode.metadata?.isVirtual) {
+                sourceUrl = vNode.metadata.originalFileUrl;
+                const loc = vNode.metadata.location;
+                groundingHint = `[AUTOMATED REFERENCE: Resource ${studySession.currentResourceId} Node ${studySession.activeGroundingNodeId}] [GROUNDING CONTEXT: Focus on ${loc.modality === 'video' ? `timestamps ${loc.start}-${loc.end}s` : (loc.pages ? `pages ${loc.pages.join(', ')}` : `this section`)}]`;
             }
 
             // 2. Fetch Buffer (Original or Sliced)
@@ -428,7 +438,7 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
     // Process tool calls
     // Map returns promises now because handleToolCall is async
     const toolResults = await Promise.all(
-        response.toolCalls.map((tc: any) => handleToolCall(tc, sessionId))
+        response.toolCalls.map((tc: any) => handleToolCall(tc, sessionId, studySession))
     ).then(results => results.filter(Boolean));
 
     // Extract paths (new suggested actions format)

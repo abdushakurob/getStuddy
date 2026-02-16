@@ -6,6 +6,8 @@ import * as path from 'path';
 import * as os from 'os';
 import { v4 as uuidv4 } from 'uuid';
 import { CiteKitClient } from 'citekit';
+import { createHash } from 'node:crypto';
+import Resource from '@/models/Resource';
 
 const apiKey = process.env.GEMINI_API_KEY || "";
 
@@ -60,6 +62,11 @@ const model = genAI.getGenerativeModel({
 });
 
 console.log(`[Planning Agent] Using model: ${AI_MODEL}`);
+
+// Helper to calculate SHA-256 hash of a buffer
+function calculateHash(buffer: Buffer): string {
+    return createHash('sha256').update(buffer).digest('hex');
+}
 
 // Helper to fetch and convert URL to Base64 with Retries
 async function urlToGenerativePart(url: string, mimeType: string) {
@@ -168,6 +175,27 @@ export async function analyzeDocument(fileUrl: string, mimeType: string = "appli
             fs.writeFileSync(tempFilePath, Buffer.from(buffer));
             console.log(`[CiteKit] File saved to temp: ${tempFilePath} (${buffer.byteLength} bytes)`);
 
+            // --- REDUNDANCY FIX: Hash Check ---
+            const contentHash = calculateHash(Buffer.from(buffer));
+            console.log(`[CiteKit] Calculated Hash: ${contentHash}`);
+
+            const existingResource = await Resource.findOne({ contentHash, status: 'ready' }).lean();
+            if (existingResource) {
+                console.log(`[CiteKit] MATCH FOUND: Reusing existing analysis for hash ${contentHash}`);
+                return {
+                    summary: existingResource.summary,
+                    document_type: existingResource.documentType,
+                    distilled_content: existingResource.knowledgeBase,
+                    learning_map: existingResource.learningMap,
+                    suggested_order: existingResource.suggestedOrder,
+                    total_concepts: existingResource.totalConcepts,
+                    citeKitMap: existingResource.citeKitMap,
+                    contentHash, // Return the hash so caller can save it
+                    _isReused: true,
+                    _reusedFromId: existingResource._id
+                };
+            }
+
             console.log(`[CiteKit] Initializing CiteKitClient (v0.1.5+) with baseDir: ${os.tmpdir()}`);
             const client = new CiteKitClient({
                 baseDir: os.tmpdir(),
@@ -199,12 +227,11 @@ export async function analyzeDocument(fileUrl: string, mimeType: string = "appli
     // We ALWAYS run this now to ensure no breakage in planning logic
     const analysis = await _analyzeDocumentCore(fileUrl, mimeType);
 
-    if (analysis) {
-        return {
-            ...analysis,
-            citeKitMap // Double Armour: Summary + Precision Map
-        };
-    }
+    return {
+        ...analysis,
+        citeKitMap, // Double Armour: Summary + Precision Map
+        contentHash: (analysis as any).contentHash // Pass through the hash calculated above
+    };
     return null;
 }
 
