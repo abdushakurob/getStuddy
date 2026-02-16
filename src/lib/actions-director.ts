@@ -421,6 +421,8 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
             } else {
                 // Small File -> Inline Base64 (Faster)
                 console.log(`[CiteKit Hybrid] Evidence is small (${sizeMB.toFixed(2)}MB). Using Inline Base64.`);
+                // Add a loud label to prevent user-attribution hallucination
+                currentMessageParts.push({ text: `[SYSTEM_OBSERVATION: Attaching visual reference for ${studySession.activeGroundingNodeId || 'current context'}]` });
                 currentMessageParts.push({
                     inlineData: {
                         data: evidenceBuffer.toString('base64'),
