@@ -247,10 +247,15 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
     const combinedSuggestedOrder = resources.flatMap((r: any) => r.suggestedOrder || []);
     const totalConcepts = resources.reduce((sum: number, r: any) => sum + (r.totalConcepts || 0), 0);
 
-    // Build comprehensive content
-    const knowledgeBase = resources.map((r: any) =>
-        `=== ${r.title} (${r.type}) ===\n${r.knowledgeBase?.substring(0, 50000) || r.summary || ''}`
-    ).join('\n\n');
+    // Build comprehensive content and collect ALL CiteKit maps
+    const citeKitMaps: any[] = [];
+    const knowledgeBase = resources.map((r: any) => {
+        if (r.citeKitMap) {
+            // Tag the map so the aggregator can group by resource
+            citeKitMaps.push({ ...r.citeKitMap, resourceTitle: r.title, resourceId: r._id.toString() });
+        }
+        return `=== ${r.title} (${r.type}) [ID: ${r._id.toString()}] ===\n${r.knowledgeBase?.substring(0, 50000) || r.summary || ''}`;
+    }).join('\n\n');
 
     // List of resources for Agent to see
     const availableResourcesList = resources.map((r: any) =>
@@ -268,7 +273,8 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
 
         // Structured learning data
         learningMap: combinedLearningMap,
-        citeKitMap: primaryResource?.citeKitMap,
+        citeKitMaps, // Pass all maps as an array
+        primaryCiteKitMap: primaryResource?.citeKitMap, // Still keep primary for backward compatibility if needed
         suggestedOrder: combinedSuggestedOrder,
         totalConcepts,
 
