@@ -11,7 +11,7 @@ const tools = [
         parameters: {
             type: SchemaType.OBJECT,
             properties: {
-                page: { type: SchemaType.NUMBER, description: "Page number to scroll to." },
+                page: { type: SchemaType.NUMBER, description: "Physical 1-indexed page number from the PDF viewer (e.g., 1, 2, 13). Ignore printed labels (headers/footers)." },
                 timestamp: { type: SchemaType.STRING, description: "Timestamp for Video/Audio." },
                 resource_id: { type: SchemaType.STRING, description: "ID of the resource to switch to." }
             },
@@ -108,9 +108,12 @@ export function initializeCompanion(context: any) {
     ═══════════════════════════════════════════════════════════
     ${pageIndexText}
 
-    IMPORTANT: When using navigate_resource, ALWAYS prioritize using the **node_id** from the index above.
-    The Node IDs are semantic links to the actual content. Navigating by Node ID ensures the system resolves the EXACT segment you are looking at.
-    Do NOT guess or infer page numbers from the knowledge base text. The PAGE INDEX is the source of truth.
+    PAGE MAPPING RULES (CRITICAL):
+    1. **Strict Physical Index**: PDF documents are deceptive. A page labeled "3" at the bottom of the page might be physical page 13 in the viewer. You MUST ignore all page numbers mentioned in the Knowledge Base text or printed on the pages.
+    2. **Source of Truth**: The MASTER PAGE INDEX above is your ONLY source of truth for page numbers. If it says a concept is on Page 13, it is Physical Page 13.
+    3. **Transparency**: If you notice a gap (e.g., printed Page 3 is actually Physical Page 13), mention it to the user so they aren't confused: "I'm looking at physical page 13 (labeled as Page 3)..."
+    4. **Consistency**: Whenever using 'navigate_resource', ALWAYS pass the physical 1-indexed number from the index above.
+    5. **Node Over Page**: Using 'node_id' in 'ground_concept' is still the preferred way to PIN evidence, while 'navigate_resource' is for UI scrolling.
 
     ═══════════════════════════════════════════════════════════
     KNOWLEDGE BASE (Search this first!)
