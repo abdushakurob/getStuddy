@@ -149,6 +149,7 @@ export function initializeCompanion(context: any) {
     TOOL USAGE RULES
     ═══════════════════════════════════════════════════════════
     - navigate_resource: REQUIRED. Whenever you discuss a specific page/video, YOU MUST CALL THIS TOOL. It auto-scrolls the user's screen. CRITICAL: You MUST include a text message with every navigation. Example: "Let's look at the diagram on Page 5 that shows..." followed by the navigate_resource call. NEVER navigate without explaining what you're showing and why. Use page numbers from the PAGE INDEX below — do NOT guess.
+    - retrieve_nodes: NEW. Use this when you need detailed information about a specific concept that's not in your immediate context. This searches all resource CiteKit maps and returns the top-K most relevant nodes with summaries. Example: When the user asks "What's the Endowment Effect?" but you don't have full details in your context, call retrieve_nodes(query: "Endowment Effect definition and examples"). The tool will return relevant nodes with page numbers and summaries you can reference.
     - explain_concept: For deep dives.
     - check_understanding: For those "Flashcard" moments.
     - offer_paths: Use at the very start or if stuck.
@@ -273,6 +274,19 @@ export function initializeCompanion(context: any) {
                     agent_mode: { type: SchemaType.STRING, enum: ["guide", "challenger", "supporter"] }
                 },
                 required: ["user_engagement", "agent_mode"]
+            }
+        },
+        {
+            name: "retrieve_nodes",
+            description: "Retrieves specific nodes from the CiteKit map based on topic/concept relevance. Use this when you need detailed information about a specific concept that is not in your immediate context. Returns the top-K most relevant nodes with summaries and references.",
+            parameters: {
+                type: SchemaType.OBJECT,
+                properties: {
+                    query: { type: SchemaType.STRING, description: "The topic, concept, or question you're searching for. Be specific (e.g., 'Endowment Effect examples', 'Fourier Transform definition')" },
+                    milestone: { type: SchemaType.STRING, description: "Optional: Current milestone you're working on for context" },
+                    keywords: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: "Optional: Key terms to search for" }
+                },
+                required: ["query"]
             }
         }
     ];

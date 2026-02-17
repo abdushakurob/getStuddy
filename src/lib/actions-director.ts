@@ -5,7 +5,105 @@ import dbConnect from '@/lib/db';
 import Session from '@/models/Session';
 import { initializeCompanion, sendCompanionMessage } from './director-agent';
 import { revalidatePath } from 'next/cache';
-import { findNodeByPage, resolveResourceNode } from '@/lib/citekit-resolver';
+import { resolveResourceNode } from '@/lib/citekit-resolver';
+
+const MAX_RESOURCES_CONTEXT = 3;
+const MAX_CHARS_PER_RESOURCE = 12000;
+const MAX_TOTAL_CHARS = 30000;
+
+function rankResourceForContext(resource: any, currentResourceId?: string) {
+    if (currentResourceId && resource._id?.toString() === currentResourceId) return 0;
+    if (resource.type === 'pdf') return 1;
+    return 2;
+}
+
+/**
+ * Validates tool call arguments before execution
+ * Returns { valid: boolean, error?: string }
+ */
+function validateToolCall(toolCall: any, resources: any[], studySession: any): { valid: boolean; error?: string } {
+    const { name, args } = toolCall;
+
+    switch (name) {
+        case 'navigate_resource':
+            // Validate resource ID exists
+            if (args.resource_id) {
+                const resourceExists = resources.some((r: any) => r._id.toString() === args.resource_id);
+                if (!resourceExists) {
+                    return { valid: false, error: `Resource ID ${args.resource_id} not found` };
+                }
+            }
+
+            // Validate page number is within bounds
+            if (args.page !== undefined) {
+                if (typeof args.page !== 'number' || args.page < 1) {
+                    return { valid: false, error: `Invalid page number: ${args.page}. Must be >= 1` };
+                }
+                
+                // Optional: Check against resource's max pages if available
+                if (args.resource_id) {
+                    const resource = resources.find((r: any) => r._id.toString() === args.resource_id);
+                    const citeKitMap = resource?.citeKitMap as any;
+                    if (citeKitMap?.nodes) {
+                        const maxPage = Math.max(...citeKitMap.nodes.map((n: any) => n.page || 0));
+                        if (maxPage > 0 && args.page > maxPage) {
+                            return { valid: false, error: `Page ${args.page} exceeds document length (max: ${maxPage})` };
+                        }
+                    }
+                }
+            }
+
+            // Validate timestamp for video/audio resources
+            if (args.timestamp !== undefined) {
+                if (typeof args.timestamp !== 'number' || args.timestamp < 0) {
+                    return { valid: false, error: `Invalid timestamp: ${args.timestamp}. Must be >= 0` };
+                }
+            }
+            break;
+
+        case 'ground_concept':
+            // Validate node_id is provided
+            if (!args.node_id) {
+                return { valid: false, error: 'node_id is required for ground_concept' };
+            }
+
+            // Validate resource_id exists
+            if (args.resource_id) {
+                const resourceExists = resources.some((r: any) => r._id.toString() === args.resource_id);
+                if (!resourceExists) {
+                    return { valid: false, error: `Resource ID ${args.resource_id} not found` };
+                }
+            }
+            break;
+
+        case 'update_milestone':
+            // Validate milestone exists in session
+            if (args.label && studySession.milestones) {
+                const milestoneExists = studySession.milestones.some((m: any) => m.label === args.label);
+                if (!milestoneExists) {
+                    return { valid: false, error: `Milestone "${args.label}" not found in session` };
+                }
+            }
+
+            // Validate status is valid
+            if (args.status && !['active', 'completed'].includes(args.status)) {
+                return { valid: false, error: `Invalid milestone status: ${args.status}` };
+            }
+            break;
+
+        case 'edit_milestone':
+            // Validate original milestone exists
+            if (args.original_label && studySession.milestones) {
+                const milestoneExists = studySession.milestones.some((m: any) => m.label === args.original_label);
+                if (!milestoneExists) {
+                    return { valid: false, error: `Milestone "${args.original_label}" not found` };
+                }
+            }
+            break;
+    }
+
+    return { valid: true };
+}
 
 // Helper to fetch evidence from UploadThing and convert to Base64 (Essential for Gemini Multimodal)
 // Helper to fetch evidence from UploadThing (Essential for Gemini Multimodal)
@@ -29,8 +127,20 @@ async function fetchEvidenceBuffer(url: string): Promise<{ buffer: Buffer, mimeT
     }
 }
 
-async function handleToolCall(toolCall: any, sessionId: string, studySession: any) {
+async function handleToolCall(toolCall: any, sessionId: string, studySession: any, resources?: any[]) {
     const { name, args } = toolCall;
+
+    // Validate tool call arguments
+    const validation = validateToolCall(toolCall, resources || [], studySession);
+    if (!validation.valid) {
+        console.warn(`[Tool Validation Failed] ${name}:`, validation.error);
+        return {
+            type: 'error',
+            tool: name,
+            error: validation.error,
+            message: `I encountered an issue: ${validation.error}. Let me try a different approach.`
+        };
+    }
 
     switch (name) {
         case 'navigate_resource':
@@ -203,6 +313,39 @@ async function handleToolCall(toolCall: any, sessionId: string, studySession: an
                 agentMode: args.agent_mode
             };
 
+        case 'retrieve_nodes':
+            // NEW: CiteKit-based retrieval
+            const { searchRelevantNodes, formatNodesForContext } = await import('./citekit-retrieval');
+            const resourceIds = (resources || []).map((r: any) => r._id.toString());
+            
+            if (!resourceIds.length) {
+                return {
+                    type: 'retrieval_result',
+                    query: args.query,
+                    nodesFound: 0,
+                    nodes: [],
+                    formattedContext: 'No resources available for retrieval.'
+                };
+            }
+            
+            const searchContext = {
+                currentTopic: args.query,
+                milestone: args.milestone,
+                keywords: args.keywords
+            };
+            const rankedNodes = await searchRelevantNodes(resourceIds, searchContext);
+            const formattedNodes = formatNodesForContext(rankedNodes);
+            
+            console.log(`[CiteKit Retrieval] Query: "${args.query}" → Found ${rankedNodes.length} nodes`);
+            
+            return {
+                type: 'retrieval_result',
+                query: args.query,
+                nodesFound: rankedNodes.length,
+                nodes: rankedNodes,
+                formattedContext: formattedNodes
+            };
+
         default:
             console.warn(`Unknown tool called: ${name}`);
             return null;
@@ -242,19 +385,34 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
         primaryResource = resources.find((r: any) => r.type === 'pdf') || resources[0];
     }
 
-    // Merge learning maps from all resources
-    const combinedLearningMap = resources.flatMap((r: any) => r.learningMap || []);
-    const combinedSuggestedOrder = resources.flatMap((r: any) => r.suggestedOrder || []);
-    const totalConcepts = resources.reduce((sum: number, r: any) => sum + (r.totalConcepts || 0), 0);
+    // Rank resources to reduce context size and latency
+    const rankedResources = [...resources].sort((a: any, b: any) => {
+        return rankResourceForContext(a, currentResourceId) - rankResourceForContext(b, currentResourceId);
+    });
 
-    // Build comprehensive content and collect ALL CiteKit maps
+    const resourcesForContext = rankedResources.slice(0, MAX_RESOURCES_CONTEXT);
+
+    // Merge learning maps only for selected resources
+    const combinedLearningMap = resourcesForContext.flatMap((r: any) => r.learningMap || []);
+    const combinedSuggestedOrder = resourcesForContext.flatMap((r: any) => r.suggestedOrder || []);
+    const totalConcepts = resourcesForContext.reduce((sum: number, r: any) => sum + (r.totalConcepts || 0), 0);
+
+    // Build trimmed content and collect CiteKit maps for selected resources
     const citeKitMaps: any[] = [];
-    const knowledgeBase = resources.map((r: any) => {
+    let totalChars = 0;
+    const knowledgeBase = resourcesForContext.map((r: any) => {
         if (r.citeKitMap) {
             // Tag the map so the aggregator can group by resource
             citeKitMaps.push({ ...r.citeKitMap, resourceTitle: r.title, resourceId: r._id.toString() });
         }
-        return `=== ${r.title} (${r.type}) [ID: ${r._id.toString()}] ===\n${r.knowledgeBase?.substring(0, 50000) || r.summary || ''}`;
+
+        const rawContent = r.knowledgeBase || r.summary || '';
+        const remaining = Math.max(0, MAX_TOTAL_CHARS - totalChars);
+        const sliceSize = Math.min(MAX_CHARS_PER_RESOURCE, remaining);
+        const snippet = rawContent.substring(0, sliceSize);
+        totalChars += snippet.length;
+
+        return `=== ${r.title} (${r.type}) [ID: ${r._id.toString()}] ===\n${snippet}`;
     }).join('\n\n');
 
     // List of resources for Agent to see
@@ -448,13 +606,13 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
         model,
         currentMessageParts as any,
         finalHistory,
-        async (fc: any) => await handleToolCall(fc, sessionId, studySession)
+        async (fc: any) => await handleToolCall(fc, sessionId, studySession, resources)
     );
 
     // Process tool calls
     // Map returns promises now because handleToolCall is async
     const toolResults = await Promise.all(
-        response.toolCalls.map((tc: any) => handleToolCall(tc, sessionId, studySession))
+        response.toolCalls.map((tc: any) => handleToolCall(tc, sessionId, studySession, resources))
     ).then(results => results.filter(Boolean));
 
     // Extract paths (new suggested actions format)

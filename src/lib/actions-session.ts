@@ -6,6 +6,7 @@ import Session from '@/models/Session';
 import StudyPlan from '@/models/StudyPlan';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { waitUntil } from '@vercel/functions';
 
 // Start a new logical session for a specific topic in a Plan
 export async function startSession(courseId: string, studyPlanId: string, topicName: string) {
@@ -77,23 +78,25 @@ export async function startSession(courseId: string, studyPlanId: string, topicN
     // 3. Trigger the agent to generate the initial greeting with actions
     const { sendMessageToDirector } = await import('./actions-director');
 
-    try {
-        // Wait for agent to generate greeting - this ensures user sees the greeting when they land on the page
-        await sendMessageToDirector(
-            newSession._id.toString(),
-            `[New session] Briefly welcome the student as a supportive companion, then IMMEDIATELY pivot to the first milestone: "${milestones[0]?.label || topicName}". Ask if they are ready to dive in or if they want to adjust the plan first.`,
-            'system'
-        );
-    } catch (error) {
-        // ... fallback ...
-        console.error('Failed to generate initial greeting:', error);
-        newSession.transcript.push({
-            role: 'assistant',
-            content: `Hey! Ready to learn about **${topicName}**? Let's start with **${milestones[0]?.label || 'the basics'}**!`,
-            timestamp: new Date()
-        });
-        await newSession.save();
-    }
+    waitUntil((async () => {
+        try {
+            // Generate greeting in background to avoid blocking session start
+            await sendMessageToDirector(
+                newSession._id.toString(),
+                `[New session] Briefly welcome the student as a supportive companion, then IMMEDIATELY pivot to the first milestone: "${milestones[0]?.label || topicName}". Ask if they are ready to dive in or if they want to adjust the plan first.`,
+                'system'
+            );
+        } catch (error) {
+            // ... fallback ...
+            console.error('Failed to generate initial greeting:', error);
+            newSession.transcript.push({
+                role: 'assistant',
+                content: `Hey! Ready to learn about **${topicName}**? Let's start with **${milestones[0]?.label || 'the basics'}**!`,
+                timestamp: new Date()
+            });
+            await newSession.save();
+        }
+    })());
 
     // 4. Return ID (Client will redirect)
     return newSession._id.toString();
