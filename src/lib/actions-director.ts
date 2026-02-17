@@ -423,6 +423,25 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
         return `=== ${r.title} (${r.type}) [ID: ${r._id.toString()}] ===\n${snippet}`;
     }).join('\n\n');
 
+    // ✨ NEW: Create lightweight summaries of ALL CiteKit maps (not just top 3)
+    // This prevents the model from being blind to other resources
+    const allCiteKitMapSummaries = resources.map((r: any) => {
+        if (!r.citeKitMap?.nodes) return null;
+        
+        return {
+            resourceId: r._id.toString(),
+            resourceTitle: r.title,
+            resourceType: r.type,
+            nodeCount: r.citeKitMap.nodes.length,
+            nodes: r.citeKitMap.nodes.map((node: any) => ({
+                id: node.id || node.nodeId,
+                title: node.title || node.label || 'Untitled',
+                page: node.page,
+                timestamp: node.timestamp
+            }))
+        };
+    }).filter(Boolean); // Remove null entries
+
     // List of resources for Agent to see
     const availableResourcesList = resources.map((r: any) =>
         `- ID: ${r._id.toString()} | Title: ${r.title} | Type: ${r.type}`
@@ -439,7 +458,8 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
 
         // Structured learning data
         learningMap: combinedLearningMap,
-        citeKitMaps, // Pass all maps as an array
+        citeKitMaps, // Pass detailed maps for top 3 resources
+        allCiteKitMapSummaries, // ✨ NEW: Lightweight summaries of ALL resources
         primaryCiteKitMap: primaryResource?.citeKitMap, // Still keep primary for backward compatibility if needed
         suggestedOrder: combinedSuggestedOrder,
         totalConcepts,

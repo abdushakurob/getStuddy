@@ -109,6 +109,18 @@ export function initializeCompanion(context: any) {
     ═══════════════════════════════════════════════════════════
     ${pageIndexText}
 
+    ═══════════════════════════════════════════════════════════
+    ✨ ALL AVAILABLE RESOURCES MAP (What exists across all materials)
+    ═══════════════════════════════════════════════════════════
+    ${context.allCiteKitMapSummaries?.map((summary: any) => `
+    📚 ${summary.resourceTitle} (${summary.resourceType}) [${summary.nodeCount} topics]
+       Resource ID: ${summary.resourceId}
+       Topics: ${summary.nodes.map((n: any) => `"${n.title}"${n.page ? ` (p${n.page})` : ''}`).join(', ')}
+    `).join('\n') || 'No resource summaries available'}
+
+    IMPORTANT: You can now see the structure of ALL resources above, not just the top 3 in your knowledge base.
+    If you need detailed information about a topic in any resource, use retrieve_nodes() to fetch it!
+
     PAGE MAPPING RULES (CRITICAL - DO NOT IGNORE):
     1. **Strict Physical Index**: PDF documents are deceptive. A page labeled "3" at the bottom of the page might be physical page 13 in the viewer.
     2. **DECEPTIVE LABELS**: You will see tags like "[Page 3]" in the raw KNOWLEDGE BASE text. **THESE ARE LIES.** They are logical labels from the document author. You MUST IGNORE THEM.
@@ -118,7 +130,7 @@ export function initializeCompanion(context: any) {
     6. **Node Over Page**: Using 'node_id' in 'ground_concept' is still the preferred way to PIN evidence, as it points to the exact semantic segment. 'navigate_resource' is for UI scrolling.
 
     ═══════════════════════════════════════════════════════════
-    KNOWLEDGE BASE (Search this first!)
+    KNOWLEDGE BASE (Search this first! Detailed content from top 3 resources)
     ═══════════════════════════════════════════════════════════
     ${context.knowledgeBase?.substring(0, 500000) || 'No content loaded'}
 
