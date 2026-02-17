@@ -43,20 +43,37 @@ export async function getCourses(): Promise<CourseData[]> {
     await dbConnect();
     const courses = await Course.find({ userId: session.user.id }).sort({ createdAt: -1 }).lean();
 
-    // Aggregate counts safely
-    const coursesWithCounts = await Promise.all(courses.map(async (c: any) => {
-        const folderCount = await Folder.countDocuments({ courseId: c._id });
-        const resourceCount = await Resource.countDocuments({ courseId: c._id });
+    // Get all course IDs
+    const courseIds = courses.map((c: any) => c._id);
 
+    // Single aggregation for folder counts
+    const folderCounts = await Folder.aggregate([
+        { $match: { courseId: { $in: courseIds } } },
+        { $group: { _id: '$courseId', count: { $sum: 1 } } }
+    ]);
+
+    // Single aggregation for resource counts
+    const resourceCounts = await Resource.aggregate([
+        { $match: { courseId: { $in: courseIds } } },
+        { $group: { _id: '$courseId', count: { $sum: 1 } } }
+    ]);
+
+    // Create lookup maps
+    const folderCountMap = new Map(folderCounts.map((fc: any) => [fc._id.toString(), fc.count]));
+    const resourceCountMap = new Map(resourceCounts.map((rc: any) => [rc._id.toString(), rc.count]));
+
+    // Map courses with counts
+    const coursesWithCounts = courses.map((c: any) => {
+        const courseId = c._id.toString();
         return {
-            id: c._id.toString(),
+            id: courseId,
             title: c.title,
             description: c.description,
             color: c.color,
-            folderCount,    // Return actual count
-            resourceCount   // Return actual count
+            folderCount: folderCountMap.get(courseId) || 0,
+            resourceCount: resourceCountMap.get(courseId) || 0
         };
-    }));
+    });
 
     return coursesWithCounts;
 }
@@ -138,15 +155,23 @@ export async function getCourseContent(courseId: string, folderId: string | null
     }).sort({ createdAt: -1 }).lean();
     console.log(`[getCourseContent] Found ${resources.length} resources.`);
 
-    // Build Breadcrumbs (Navigation)
+    // Build Breadcrumbs (Navigation) - Optimized to avoid N+1
     const navigation = [];
     if (folderId) {
+        // Fetch all folders in one query for breadcrumb building
+        const allFolders = await Folder.find({ courseId }).select('_id name parentId').lean();
+        const folderMap = new Map(allFolders.map((f: any) => [f._id.toString(), f]));
+        
         let currentId = folderId;
-        while (currentId) {
-            const folder = await Folder.findById(currentId).lean() as any;
+        let depth = 0;
+        const maxDepth = 20; // Prevent infinite loops
+        
+        while (currentId && depth < maxDepth) {
+            const folder = folderMap.get(currentId.toString());
             if (!folder) break;
-            navigation.unshift({ id: folder._id.toString(), name: folder.name });
-            currentId = folder.parentId;
+            navigation.unshift({ id: (folder as any)._id.toString(), name: (folder as any).name });
+            currentId = (folder as any).parentId;
+            depth++;
         }
     }
     // Prepend Course Root

@@ -731,7 +731,12 @@ export default function AgentCanvas({
                             </div>
                         )}
 
-                        {transcript.map(renderMessage)}
+                        {transcript.slice(-100).map(renderMessage)}
+                        {transcript.length > 100 && (
+                            <div className="text-center py-2 text-sm text-gray-500">
+                                Showing last 100 messages ({transcript.length - 100} older messages hidden)
+                            </div>
+                        )}
 
                         {loading && (
                             <div className="flex items-center gap-2 text-gray-500 ml-4">

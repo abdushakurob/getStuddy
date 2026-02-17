@@ -7,6 +7,7 @@ import { ResourceProvider } from '@/context/ResourceContext';
 import ResourceViewer from '@/components/workspace/ResourceViewer';
 import AgentCanvas from '@/components/workspace/AgentCanvas';
 import ResourceInitializer from '@/components/workspace/ResourceInitializer';
+import { WorkspaceErrorBoundary } from '@/components/ErrorBoundary';
 
 export default async function WorkspacePage({ params }: { params: Promise<{ sessionId: string }> }) {
     const { sessionId } = await params;
@@ -28,7 +29,8 @@ export default async function WorkspacePage({ params }: { params: Promise<{ sess
     }));
 
     return (
-        <ResourceProvider>
+        <WorkspaceErrorBoundary>
+            <ResourceProvider>
             <div className="h-screen w-full bg-[#f8f9fa] text-gray-900 flex flex-col overflow-hidden font-[family-name:var(--font-plus-jakarta)]">
 
                 {/* Header (Clean, Light) */}
@@ -104,5 +106,6 @@ export default async function WorkspacePage({ params }: { params: Promise<{ sess
                 </div>
             </div>
         </ResourceProvider>
+        </WorkspaceErrorBoundary>
     );
 }

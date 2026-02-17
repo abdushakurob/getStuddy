@@ -13,6 +13,14 @@ export async function startSession(courseId: string, studyPlanId: string, topicN
     const session = await auth();
     if (!session?.user?.id) throw new Error('Unauthorized');
 
+    // Rate limiting for session creation (P0)
+    const { checkRateLimit, RATE_LIMITS } = await import('./rate-limiter');
+    const rateLimit = checkRateLimit(session.user.id, RATE_LIMITS.SESSION);
+    
+    if (!rateLimit.allowed) {
+        throw new Error(`Too many sessions created. Please wait ${rateLimit.retryAfter} seconds.`);
+    }
+
     await dbConnect();
 
     // 0. Check for existing active session for this specific topic

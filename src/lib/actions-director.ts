@@ -356,6 +356,14 @@ export async function sendMessageToDirector(sessionId: string, userMessage: stri
     const session = await auth();
     if (!session?.user?.id) throw new Error('Unauthorized');
 
+    // Rate limiting for message sending (P0)
+    const { checkRateLimit, RATE_LIMITS } = await import('./rate-limiter');
+    const rateLimit = checkRateLimit(session.user.id, RATE_LIMITS.MESSAGE);
+    
+    if (!rateLimit.allowed) {
+        throw new Error(`Rate limit exceeded. Please wait ${rateLimit.retryAfter} seconds before sending another message.`);
+    }
+
     await dbConnect();
 
     // Fetch session
