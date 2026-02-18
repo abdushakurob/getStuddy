@@ -142,6 +142,7 @@ export default function AgentCanvas({
         // Clear input field
         if (inputRef.current) {
             inputRef.current.value = '';
+            inputRef.current.style.height = 'auto';
         }
 
         try {
@@ -216,15 +217,35 @@ export default function AgentCanvas({
             }
 
             setCompanionStatus(response.progress?.isComplete ? "Great session!" : "I'm here if you need me");
-        } catch (error) {
+        } catch (error: any) {
             console.error('Director error:', error);
-            setCompanionStatus("Something went wrong");
+            
+            // Add error message to transcript with retry option
+            const errorMessage = error?.message || "Something went wrong. Please try again.";
+            setTranscript(prev => [...prev, {
+                role: 'assistant',
+                content: `⚠️ **Error**: ${errorMessage}`,
+                suggestedActions: [{
+                    label: '🔄 Retry',
+                    intent: `retry:${message}`,
+                    priority: 'primary' as const
+                }]
+            }]);
+            
+            setCompanionStatus("Error occurred - click retry to try again");
         } finally {
             setLoading(false);
         }
     };
 
     const handleAction = async (label: string, intent: string) => {
+        // Handle retry special case
+        if (intent.startsWith('retry:')) {
+            const originalMessage = intent.replace('retry:', '');
+            handleSendMessage(originalMessage);
+            return;
+        }
+        
         setLoading(true);
         setCompanionStatus("Processing...");
         setNavigationHint(null);
