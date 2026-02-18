@@ -3,6 +3,7 @@ import CourseExplorer from '@/components/courses/CourseExplorer';
 import Link from 'next/link';
 import { ArrowLeft, Plus, ArrowRight } from 'lucide-react';
 import { continueMission } from '@/lib/actions-dashboard';
+import { QuickStudyCTA } from '@/components/quick-study/QuickStudyButton';
 
 type Props = {
     params: Promise<{ id: string }>;
@@ -50,6 +51,15 @@ export default async function CoursePage({ params, searchParams }: Props) {
                         <span>Create Study Plan</span>
                     </Link>
                 )}
+            </div>
+
+            {/* Quick Study CTA */}
+            <div className="mb-6 shrink-0">
+                <QuickStudyCTA 
+                    title="Need help with this course?"
+                    description="Start a focused study session on any topic"
+                    courseId={courseId}
+                />
             </div>
 
             {/* TABS - Pill Style Toggle */}

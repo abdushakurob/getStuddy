@@ -6,11 +6,12 @@ import { useRouter } from "next/navigation";
 import { useState, useRef } from "react";
 
 interface UploadButtonProps {
-    courseId: string;
+    courseId?: string | null;
     folderId: string | null;
+    sessionId?: string;
 }
 
-export default function UploadButton({ courseId, folderId }: UploadButtonProps) {
+export default function UploadButton({ courseId, folderId, sessionId }: UploadButtonProps) {
     const router = useRouter();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
@@ -50,10 +51,14 @@ export default function UploadButton({ courseId, folderId }: UploadButtonProps) 
         setUploadStatus('uploading');
 
         // Pass context data to the uploader
-        await startUpload(files, {
-            courseId,
+        const uploadInput: { courseId?: string; folderId?: string; sessionId?: string } = {
             folderId: folderId || "null"
-        });
+        };
+
+        if (courseId) uploadInput.courseId = courseId;
+        if (sessionId) uploadInput.sessionId = sessionId;
+
+        await startUpload(files, uploadInput);
     };
 
     return (

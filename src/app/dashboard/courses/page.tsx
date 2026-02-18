@@ -2,6 +2,7 @@ import { getCourses } from '@/lib/actions-course';
 import CreateCourseForm from '@/components/courses/CreateCourseForm';
 import CourseCard from '@/components/courses/CourseCard';
 import { BookOpen } from 'lucide-react';
+import { QuickStudyCTA } from '@/components/quick-study/QuickStudyButton';
 
 export default async function CoursesPage() {
     const courses = await getCourses();
@@ -9,12 +10,20 @@ export default async function CoursesPage() {
     return (
         <div className="h-full flex flex-col p-8">
             {/* Header */}
-            <div className="flex items-center justify-between mb-10">
+            <div className="flex items-center justify-between mb-6">
                 <div>
                     <h1 className="text-3xl font-black text-[#1F2937]">Library</h1>
                     <p className="text-gray-500 font-medium mt-1">Manage your syllabus and materials.</p>
                 </div>
                 <CreateCourseForm />
+            </div>
+
+            {/* Quick Study CTA */}
+            <div className="mb-8">
+                <QuickStudyCTA 
+                    title="Need help with something?"
+                    description="Start a Quick Study session without any setup"
+                />
             </div>
 
             {/* Grid */}

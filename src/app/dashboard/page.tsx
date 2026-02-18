@@ -1,8 +1,10 @@
 import { auth } from '@/auth';
-import { Calendar, Play, FolderOpen, ArrowRight, Clock, Plus, BookOpen } from 'lucide-react';
+import { Calendar, Play, FolderOpen, ArrowRight, Clock, Plus, BookOpen, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { getDashboardData } from '@/lib/actions-dashboard';
 import Greeting from '@/components/dashboard/Greeting';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default async function DashboardPage() {
     const session = await auth();
@@ -27,6 +29,28 @@ export default async function DashboardPage() {
                     Ready to learn something new today?
                 </p>
             </div>
+
+            {/* --- QUICK STUDY CTA --- */}
+            <Card className="mb-8 bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20 shadow-md">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-xl">
+                        <Zap className="h-5 w-5 text-primary" />
+                        Stuck on something?
+                    </CardTitle>
+                    <CardDescription className="text-base">
+                        Get instant help without any course setup
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Link href="/quick-study">
+                        <Button size="lg" className="w-full group">
+                            <Zap className="mr-2 h-5 w-5 group-hover:animate-pulse" />
+                            Quick Study
+                            <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                        </Button>
+                    </Link>
+                </CardContent>
+            </Card>
 
             {/* --- JUMP BACK IN --- */}
             {data?.lastSession && (

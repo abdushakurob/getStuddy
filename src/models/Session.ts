@@ -9,12 +9,31 @@ const SessionSchema = new mongoose.Schema({
     courseId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Course',
-        required: true
+        required: false  // Changed: Optional for Quick Study sessions
     },
     studyPlanId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'StudyPlan',
-        required: true
+        required: false  // Changed: Optional for Quick Study sessions
+    },
+    
+    // Quick Study metadata
+    initialQuery: {
+        type: String,
+        required: false  // User's initial question in Quick Study
+    },
+    startedVia: {
+        type: String,
+        enum: ['regular', 'quick_study'],
+        default: 'regular'
+    },
+    
+    // Session roadmap (can be generated during session)
+    roadmap: {
+        objective: String,  // "Master supply curve concepts"
+        milestones: [String],  // ["Understand definition", "Learn applications"]
+        completedMilestones: [String],
+        generatedAt: Date
     },
     title: {
         type: String,
@@ -30,9 +49,10 @@ const SessionSchema = new mongoose.Schema({
         default: Date.now
     },
     endTime: Date,
+    
     status: {
         type: String,
-        enum: ['active', 'completed', 'abandoned'],
+        enum: ['active', 'completed', 'abandoned', 'in_progress'],  // Added 'in_progress'
         default: 'active'
     },
     currentResourceId: {
@@ -52,10 +72,12 @@ const SessionSchema = new mongoose.Schema({
     }],
 
     parkingLot: [{
-        topic: String,
-        question: String,
+        item: String,  // Simplified: just the item text
+        topic: String,  // Legacy field
+        question: String,  // Legacy field
         context: String, // e.g. "Page 5"
-        addedAt: { type: Date, default: Date.now }
+        addedAt: { type: Date, default: Date.now },
+        resolved: { type: Boolean, default: false }  // Track if addressed
     }],
 
     mood: {

@@ -5,6 +5,8 @@ import dbConnect from "@/lib/db";
 import Resource from "@/models/Resource";
 import { analyzeDocument } from "@/lib/gemini";
 import { z } from "zod";
+import Session from "@/models/Session";
+import Course from "@/models/Course";
 
 const f = createUploadthing();
 
@@ -12,6 +14,33 @@ const f = createUploadthing();
 const handleFile = async ({ file, metadata }: any) => {
     try {
         await dbConnect();
+
+        let resolvedCourseId = metadata.courseId as string | undefined;
+        let sessionToUpdate = null as any;
+
+        if (!resolvedCourseId && metadata.sessionId) {
+            sessionToUpdate = await Session.findById(metadata.sessionId);
+
+            if (sessionToUpdate?.courseId) {
+                resolvedCourseId = sessionToUpdate.courseId.toString();
+            } else if (sessionToUpdate) {
+                const newCourse = await Course.create({
+                    userId: sessionToUpdate.userId,
+                    title: sessionToUpdate.topicName || 'Quick Study Course',
+                    description: 'Auto-created from a Quick Study session',
+                    color: '#8B5CF6'
+                });
+
+                sessionToUpdate.courseId = newCourse._id;
+                await sessionToUpdate.save();
+                resolvedCourseId = newCourse._id.toString();
+            }
+        }
+
+        if (!resolvedCourseId) {
+            console.error("[UploadThing] Missing courseId and sessionId; cannot create resource.");
+            return;
+        }
 
         // Get safe file type
         const fileType = file.type || 'application/pdf'; // Fallback if type is missing
@@ -23,7 +52,7 @@ const handleFile = async ({ file, metadata }: any) => {
 
         // 1. Create Resource Entry (Processing State)
         const resource = await Resource.create({
-            courseId: metadata.courseId,
+            courseId: resolvedCourseId,
             folderId: metadata.folderId === 'null' ? null : metadata.folderId,
             userId: metadata.userId,
             title: file.name,
@@ -32,6 +61,20 @@ const handleFile = async ({ file, metadata }: any) => {
             status: 'processing',
             retryCount: 0
         });
+
+        if (metadata.sessionId) {
+            if (!sessionToUpdate) {
+                sessionToUpdate = await Session.findById(metadata.sessionId);
+            }
+
+            if (sessionToUpdate && !sessionToUpdate.currentResourceId) {
+                sessionToUpdate.currentResourceId = resource._id;
+                if (!sessionToUpdate.courseId) {
+                    sessionToUpdate.courseId = resolvedCourseId;
+                }
+                await sessionToUpdate.save();
+            }
+        }
 
         // 2. Trigger Gemini Analysis (Background - Fire and Forget)
         (async () => {
@@ -94,15 +137,16 @@ export const ourFileRouter = {
         blob: { maxFileSize: "16MB", maxFileCount: 10 } // Fallback
     })
         .input(z.object({
-            courseId: z.string(),
-            folderId: z.string().optional() // "null" string or undefined
+            courseId: z.string().optional(),
+            folderId: z.string().optional(), // "null" string or undefined
+            sessionId: z.string().optional()
         }))
         .middleware(async ({ req, input }) => {
             const session = await auth();
             if (!session?.user?.id) throw new Error("Unauthorized");
 
             // Input is now typed and available
-            return { userId: session.user.id, courseId: input.courseId, folderId: input.folderId };
+            return { userId: session.user.id, courseId: input.courseId, folderId: input.folderId, sessionId: input.sessionId };
         })
         .onUploadComplete(async ({ metadata, file }) => {
             // Use waitUntil to keep the lambda alive for background processing

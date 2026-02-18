@@ -28,6 +28,19 @@ export default async function WorkspacePage({ params }: { params: Promise<{ sess
         timestamp: t.timestamp
     }));
 
+    // Adapter: Convert Quick Study roadmap format to AgentCanvas milestone format
+    let milestones = workSession.milestones || [];
+    if (workSession.startedVia === 'quick_study' && workSession.roadmap?.milestones) {
+        milestones = workSession.roadmap.milestones.map((milestone: string) => {
+            const isCompleted = workSession.roadmap.completedMilestones?.includes(milestone);
+            return {
+                label: milestone,
+                status: isCompleted ? 'completed' : 'pending',
+                reasoning: isCompleted ? 'Completed' : ''
+            };
+        });
+    }
+
     return (
         <WorkspaceErrorBoundary>
             <ResourceProvider>
@@ -92,13 +105,14 @@ export default async function WorkspacePage({ params }: { params: Promise<{ sess
                             <AgentCanvas
                                 sessionId={workSession._id.toString()}
                                 topicName={workSession.topicName}
+                                courseId={workSession.courseId?.toString() || null}
                                 initialTranscript={transcript}
                                 initialProgress={{
                                     conceptsCovered: workSession.progress?.conceptsCovered || [],
                                     estimatedTotal: workSession.progress?.estimatedTotal || 5,
                                     isComplete: workSession.progress?.isComplete || false
                                 }}
-                                initialMilestones={workSession.milestones || []}
+                                initialMilestones={milestones}
                                 initialParkingLot={workSession.parkingLot || []}
                             />
                         </div>

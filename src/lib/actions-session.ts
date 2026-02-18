@@ -246,3 +246,88 @@ export async function deleteHighlight(sessionId: string, highlightId: string) {
 
     revalidatePath(`/work/${sessionId}`);
 }
+
+/**
+ * Start a Quick Study session - fast entry for urgent help
+ */
+export async function startQuickStudy(formData: FormData) {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error('Unauthorized');
+
+    const query = formData.get('query') as string;
+    const courseId = formData.get('courseId') as string | null;
+
+    if (!query?.trim()) {
+        throw new Error('Please enter what you need help with');
+    }
+
+    // Rate limiting
+    const { checkRateLimit, RATE_LIMITS } = await import('./rate-limiter');
+    const rateLimit = checkRateLimit(session.user.id, RATE_LIMITS.SESSION);
+    
+    if (!rateLimit.allowed) {
+        throw new Error(`Too many sessions created. Please wait ${rateLimit.retryAfter} seconds.`);
+    }
+
+    await dbConnect();
+
+    // Determine target course
+    let targetCourseId: string | null = null;
+    let resourceIds: string[] = [];
+
+    if (courseId && courseId !== '__new__' && courseId !== '') {
+        // User selected existing course - load its materials
+        targetCourseId = courseId;
+        
+        const resources = await Resource.find({ courseId: targetCourseId });
+        resourceIds = resources.map(r => r._id.toString());
+    }
+    // If courseId is '__new__' or empty, agent will create/link course during conversation
+
+    // Create Quick Study session
+    const newSession = await Session.create({
+        userId: session.user.id,
+        courseId: targetCourseId,
+        studyPlanId: null, // No plan yet
+        title: query.slice(0, 50), // Use query as title
+        topicName: query.slice(0, 100),
+        status: 'in_progress',
+        startedVia: 'quick_study',
+        initialQuery: query,
+        transcript: [],
+        milestones: [], // Will be generated during conversation
+        parkingLot: []
+    });
+
+    // Generate opening message (async, doesn't block)
+    const { sendMessageToDirector } = await import('./actions-director');
+
+    waitUntil((async () => {
+        try {
+            const contextMessage = targetCourseId 
+                ? `[Quick Study] User asked: "${query}". They selected a course, so materials may be available. Help them conversationally - ask clarifying questions and guide them to understanding.`
+                : `[Quick Study] User asked: "${query}". No course selected yet. Help them conversationally - you may need to ask about their course or suggest uploading materials.`;
+
+            await sendMessageToDirector(
+                newSession._id.toString(),
+                contextMessage,
+                'system'
+            );
+        } catch (error) {
+            console.error('Failed to generate Quick Study greeting:', error);
+            // Fallback greeting
+            await Session.findByIdAndUpdate(newSession._id, {
+                $push: {
+                    transcript: {
+                        role: 'assistant',
+                        content: `Hey! Let's figure this out together. ${query.includes('?') ? '' : 'What specifically confuses you about this?'}`,
+                        timestamp: new Date()
+                    }
+                }
+            });
+        }
+    })());
+
+    // Redirect to workspace
+    redirect(`/work/${newSession._id.toString()}`);
+}

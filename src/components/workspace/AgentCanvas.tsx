@@ -18,6 +18,8 @@ import {
     MessageSquare,
     Map as MapIcon,
     StickyNote,
+    Upload,
+
     Clock,
     RefreshCw
 } from 'lucide-react';
@@ -25,6 +27,7 @@ import { sendMessageToDirector, handleActionIntent } from '@/lib/actions-directo
 import { remapResource } from '@/lib/actions-course';
 import { useResource } from '@/context/ResourceContext';
 import PlanAdjustmentCard from './PlanAdjustmentCard';
+import UploadSuggestion from './UploadSuggestion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -65,6 +68,7 @@ interface AgentCanvasProps {
     initialProgress?: SessionProgress;
     initialMilestones?: Milestone[];
     initialParkingLot?: ParkingItem[];
+    courseId?: string | null;
 }
 
 export default function AgentCanvas({
@@ -73,7 +77,8 @@ export default function AgentCanvas({
     initialTranscript = [],
     initialProgress = { conceptsCovered: [], estimatedTotal: 5, isComplete: false },
     initialMilestones = [],
-    initialParkingLot = []
+    initialParkingLot = [],
+    courseId = null
 }: AgentCanvasProps) {
     const router = useRouter();
     const [transcript, setTranscript] = useState<TranscriptItem[]>(initialTranscript || []);
@@ -365,6 +370,18 @@ export default function AgentCanvas({
                                             {action.suggestion}
                                         </button>
                                     ))}
+                                </div>
+                            );
+                        }
+                        if (res.type === 'upload_suggestion') {
+                            return (
+                                <div key={idx} className="w-full max-w-xl">
+                                    <UploadSuggestion
+                                        reason={res.reason}
+                                        courseId={courseId}
+                                        folderId={null}
+                                        sessionId={sessionId}
+                                    />
                                 </div>
                             );
                         }

@@ -346,6 +346,144 @@ async function handleToolCall(toolCall: any, sessionId: string, studySession: an
                 formattedContext: formattedNodes
             };
 
+        // Quick Study Orchestration Tools
+        case 'create_course':
+            const Course = (await import('@/models/Course')).default;
+            const newCourse = await Course.create({
+                name: args.name,
+                description: args.description,
+                userId: studySession.userId,
+                autoCreated: true,
+                createdFrom: 'quick_study'
+            });
+            
+            // Auto-link session to new course
+            await Session.findByIdAndUpdate(sessionId, {
+                courseId: newCourse._id
+            });
+            
+            console.log(`[Quick Study] Created course: ${args.name}`);
+            
+            return {
+                type: 'course_created',
+                courseId: newCourse._id.toString(),
+                courseName: newCourse.name,
+                message: `Created course: ${newCourse.name}`
+            };
+
+        case 'link_session_to_course':
+            // Verify course exists and belongs to user
+            const targetCourse = await (await import('@/models/Course')).default.findOne({
+                _id: args.courseId,
+                userId: studySession.userId
+            });
+            
+            if (!targetCourse) {
+                return {
+                    type: 'error',
+                    error: 'Course not found or access denied',
+                    message: 'I couldn\'t find that course. Let me help you create a new one instead.'
+                };
+            }
+            
+            // Load course materials
+            const Resource = (await import('@/models/Resource')).default;
+            const courseResources = await Resource.find({ 
+                courseId: args.courseId,
+                status: 'ready'
+            });
+            
+            // Update session
+            await Session.findByIdAndUpdate(sessionId, {
+                courseId: args.courseId,
+                $set: {
+                    // Don't overwrite existing resources, add to them
+                    resourceIds: courseResources.map(r => r._id)
+                }
+            });
+            
+            console.log(`[Quick Study] Linked to course: ${targetCourse.name}, loaded ${courseResources.length} materials`);
+            
+            return {
+                type: 'course_linked',
+                courseId: targetCourse._id.toString(),
+                courseName: targetCourse.name,
+                materialsLoaded: courseResources.length,
+                message: `Linked to ${targetCourse.name} and loaded ${courseResources.length} material(s)`
+            };
+
+        case 'generate_roadmap':
+            await Session.findByIdAndUpdate(sessionId, {
+                $set: {
+                    roadmap: {
+                        objective: args.objective,
+                        milestones: args.milestones,
+                        completedMilestones: [],
+                        generatedAt: new Date()
+                    }
+                }
+            });
+            
+            console.log(`[Quick Study] Generated roadmap: ${args.objective}`);
+            
+            return {
+                type: 'roadmap_generated',
+                objective: args.objective,
+                milestones: args.milestones,
+                message: `Created learning roadmap with ${args.milestones.length} milestones`
+            };
+
+        case 'complete_milestone':
+            const updatedSession = await Session.findByIdAndUpdate(
+                sessionId,
+                {
+                    $addToSet: {
+                        'roadmap.completedMilestones': args.milestone
+                    }
+                },
+                { new: true }
+            );
+            
+            const totalMilestones = updatedSession?.roadmap?.milestones?.length || 0;
+            const completedCount = updatedSession?.roadmap?.completedMilestones?.length || 0;
+            
+            console.log(`[Quick Study] Completed milestone: ${args.milestone} (${completedCount}/${totalMilestones})`);
+            
+            return {
+                type: 'milestone_completed',
+                milestone: args.milestone,
+                completedCount,
+                totalMilestones,
+                message: `✅ Milestone complete: ${args.milestone}`
+            };
+
+        case 'add_to_parking_lot':
+            await Session.findByIdAndUpdate(sessionId, {
+                $push: {
+                    parkingLot: {
+                        item: args.item,
+                        addedAt: new Date(),
+                        resolved: false
+                    }
+                }
+            });
+            
+            console.log(`[Quick Study] Added to parking lot: ${args.item}`);
+            
+            return {
+                type: 'parking_lot_added',
+                item: args.item,
+                message: `Added to parking lot: ${args.item}`
+            };
+
+        case 'suggest_upload':
+            return {
+                type: 'upload_suggestion',
+                reason: args.reason,
+                showUploadUI: true,
+                message: args.reason
+            };
+
         default:
             console.warn(`Unknown tool called: ${name}`);
             return null;

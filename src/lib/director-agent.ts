@@ -38,6 +38,80 @@ const tools = [
             type: SchemaType.OBJECT,
             properties: {},
         }
+    },
+    // Quick Study Orchestration Tools
+    {
+        name: "create_course",
+        description: "Create a new course when user mentions a course name in conversation. Use this naturally when they tell you what course they're studying.",
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                name: { type: SchemaType.STRING, description: "Course name (e.g., 'Economics 101')" },
+                description: { type: SchemaType.STRING, description: "Brief description (optional)" }
+            },
+            required: ["name"]
+        }
+    },
+    {
+        name: "link_session_to_course",
+        description: "Link this session to a course (existing or newly created) and load its materials.",
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                courseId: { type: SchemaType.STRING, description: "The course ID to link to" }
+            },
+            required: ["courseId"]
+        }
+    },
+    {
+        name: "generate_roadmap",
+        description: "Create a learning roadmap for this session once you understand what the user wants to learn. Do this after initial conversation.",
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                objective: { type: SchemaType.STRING, description: "Main learning objective (e.g., 'Understand supply curves')" },
+                milestones: { 
+                    type: SchemaType.ARRAY, 
+                    items: { type: SchemaType.STRING },
+                    description: "Ordered list of learning steps" 
+                }
+            },
+            required: ["objective", "milestones"]
+        }
+    },
+    {
+        name: "complete_milestone",
+        description: "Mark a milestone as completed when the user has achieved it.",
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                milestone: { type: SchemaType.STRING, description: "The milestone text to mark complete" }
+            },
+            required: ["milestone"]
+        }
+    },
+    {
+        name: "add_to_parking_lot",
+        description: "Add a topic to the parking lot when user asks about something outside current session scope. Keeps session focused.",
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                item: { type: SchemaType.STRING, description: "The topic/question to save for later" },
+                reason: { type: SchemaType.STRING, description: "Why it's being parked (optional)" }
+            },
+            required: ["item"]
+        }
+    },
+    {
+        name: "suggest_upload",
+        description: "Suggest that user upload materials when it would help provide better answers.",
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                reason: { type: SchemaType.STRING, description: "Why uploading materials would help" }
+            },
+            required: ["reason"]
+        }
     }
 ];
 
@@ -45,7 +119,11 @@ export function initializeCompanion(context: any) {
     // Generate Roadmap Text
     const milestonesText = (context.milestones && context.milestones.length > 0)
         ? context.milestones.map((m: any) => `- [${m.status === 'completed' ? 'x' : ' '}] ${m.label} ${m.status === 'active' ? '(CURRENT)' : ''}`).join('\n')
-        : "No roadmap yet. Plan the session.";
+        : (context.roadmap?.milestones && context.roadmap.milestones.length > 0)
+            ? context.roadmap.milestones.map((m: string) => 
+                `- [${context.roadmap.completedMilestones?.includes(m) ? 'x' : ' '}] ${m}`
+              ).join('\n')
+            : "No roadmap yet. Generate one with generate_roadmap() once you understand the user's goal.";
 
     // Build MASTER PAGE INDEX from CiteKit Map (Primary) or Learning Map (Fallback)
     let pageIndexText = "";
@@ -75,11 +153,46 @@ export function initializeCompanion(context: any) {
     You are the **Academic Companion**, a helpful, encouraging, and highly intelligent study guide.
     Your goal is to help the learner master the material in the current syllabus or topic.
 
+    ${context.startedVia === 'quick_study' ? `
+    ═══════════════════════════════════════════════════════════
+    🚀 QUICK STUDY MODE
+    ═══════════════════════════════════════════════════════════
+    USER'S INITIAL QUESTION: "${context.initialQuery || context.topicName}"
+    
+    This is a Quick Study session - the user needs IMMEDIATE help, not setup.
+    
+    YOUR APPROACH:
+    1. Help them RIGHT NOW with their question
+    2. Through natural conversation, figure out:
+       - What course this is for (if not clear)
+       - Whether they have materials to reference
+    3. Once you understand the scope, generate a roadmap with generate_roadmap()
+    4. Keep them focused on the objective
+    5. If they ask unrelated questions → use add_to_parking_lot()
+    
+    CONVERSATIONAL ORCHESTRATION:
+    - When they mention a course name → use create_course() naturally
+    - If you figure out which course → use link_session_to_course()
+    - When materials would help → use suggest_upload()
+    - DON'T ask permission for every tool - just use them naturally
+    
+    SCOPE ENFORCEMENT:
+    Session objective: ${context.roadmap?.objective || context.initialQuery || 'Help user understand their question'}
+    If user brings up unrelated topics:
+    1. Acknowledge: "Good question!"
+    2. Park it: add_to_parking_lot("Topic")
+    3. Redirect: "Let's save that for later and finish [current topic] first"
+    
+    This is NOT endless chat. Stay focused on helping them with their specific problem.
+    ` : ''}
+
     ═══════════════════════════════════════════════════════════
     SESSION STATE (THE "ANCHOR")
     ═══════════════════════════════════════════════════════════
     Main Topic: ${context.topicName}
     Active Resource: ${context.resourceTitle} (${context.resourceType})
+    
+    ${context.courseId ? `Course: ${context.courseName || 'Linked'}` : 'No course linked yet - you may need to create/link one'}
     
     AVAILABLE RESOURCES (Use resource_id to switch):
     ${context.availableResourcesList || "Only current resource available."}
