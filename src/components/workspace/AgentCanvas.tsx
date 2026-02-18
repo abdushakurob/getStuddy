@@ -88,13 +88,13 @@ export default function AgentCanvas({
     // Tab State: 'chat' or 'plan'
     const [activeTab, setActiveTab] = useState<'chat' | 'plan'>('chat');
 
-    const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const [companionStatus, setCompanionStatus] = useState<string>("Ready when you are");
     const [progress, setProgress] = useState<SessionProgress>(initialProgress);
     const [navigationHint, setNavigationHint] = useState<string | null>(null);
     const [isRemapping, setIsRemapping] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
 
     // Get resource controls for navigation
     const { jumpToPage, seekTo, jumpToLabel, switchResource, currentResource, availableResources } = useResource();
@@ -138,7 +138,11 @@ export default function AgentCanvas({
             role: 'user',
             content: message
         }]);
-        setInput('');
+        
+        // Clear input field
+        if (inputRef.current) {
+            inputRef.current.value = '';
+        }
 
         try {
             const response = await sendMessageToDirector(sessionId, message, 'user', currentResource?._id);
@@ -842,19 +846,33 @@ export default function AgentCanvas({
 
             {/* Input Overlay */}
             <div className="p-6 bg-white border-t border-gray-100 shrink-0 z-10">
-                <div className="relative flex items-center shadow-sm shadow-gray-100 rounded-2xl bg-gray-50 border border-gray-200 focus-within:ring-2 ring-[#4C8233]/10 ring-offset-2 transition-all">
-                    <input
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage(input)}
-                        placeholder={activeTab === 'plan' ? "Ask about the plan or switch to chat..." : "Ask me anything or say 'Ready'..."}
-                        className="flex-1 px-4 py-3 bg-transparent outline-none text-sm text-gray-800 placeholder:text-gray-400 font-medium"
+                <div className="relative flex items-end shadow-sm shadow-gray-100 rounded-2xl bg-gray-50 border border-gray-200 focus-within:ring-2 ring-[#4C8233]/10 ring-offset-2 transition-all">
+                    <textarea
+                        ref={inputRef}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey && inputRef.current?.value.trim()) {
+                                e.preventDefault();
+                                handleSendMessage(inputRef.current.value);
+                            }
+                        }}
+                        placeholder={activeTab === 'plan' ? "Ask about the plan or switch to chat..." : "Ask me anything or say 'Ready'... (Shift+Enter for new line)"}
+                        className="flex-1 px-4 py-3 bg-transparent outline-none text-sm text-gray-800 placeholder:text-gray-400 font-medium resize-none max-h-[200px] overflow-y-auto"
+                        rows={1}
                         autoFocus
+                        onInput={(e) => {
+                            const target = e.target as HTMLTextAreaElement;
+                            target.style.height = 'auto';
+                            target.style.height = Math.min(target.scrollHeight, 200) + 'px';
+                        }}
                     />
                     <button
-                        onClick={() => handleSendMessage(input)}
-                        disabled={!input.trim() || loading}
-                        className="mr-2 p-2 bg-[#4C8233] hover:bg-[#2F4F2F] text-white rounded-xl transition-all disabled:opacity-50 disabled:bg-gray-300 shadow-md transform active:scale-95"
+                        onClick={() => {
+                            if (inputRef.current?.value.trim()) {
+                                handleSendMessage(inputRef.current.value);
+                            }
+                        }}
+                        disabled={loading}
+                        className="mr-2 mb-2 p-2 bg-[#4C8233] hover:bg-[#2F4F2F] text-white rounded-xl transition-all disabled:opacity-50 disabled:bg-gray-300 shadow-md transform active:scale-95"
                     >
                         <ArrowRight size={18} />
                     </button>

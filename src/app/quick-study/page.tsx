@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { getCourses } from "@/lib/actions-course";
 import { startQuickStudy } from "@/lib/actions-session";
+import { redirect } from "next/navigation";
 import QuickStudyShell from "@/components/quick-study/QuickStudyShell";
 
 type Props = {
@@ -10,7 +11,7 @@ type Props = {
 export default async function QuickStudyPage({ searchParams }: Props) {
   const session = await auth();
   if (!session?.user) {
-    return null; // Handle auth redirect
+    redirect('/login');
   }
 
   const courses = await getCourses();
