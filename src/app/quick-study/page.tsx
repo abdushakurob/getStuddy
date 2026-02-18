@@ -62,12 +62,12 @@ export default async function QuickStudyPage({ searchParams }: Props) {
               {courses.length > 0 && (
                 <div className="space-y-2">
                   <Label htmlFor="courseId">Which course is this for? (optional)</Label>
-                  <Select name="courseId" defaultValue={preselectedCourseId || ""}>
+                  <Select name="courseId" defaultValue={preselectedCourseId || undefined}>
                     <SelectTrigger>
                       <SelectValue placeholder="I'll let you figure it out" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Let the AI decide</SelectItem>
+                      <SelectItem value="__auto__">Let the AI decide</SelectItem>
                       <SelectItem value="__new__">Create new course</SelectItem>
                       {courses.map((course) => (
                         <SelectItem key={course.id} value={course.id}>

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
-import { LayoutDashboard, FolderOpen, Settings, LogOut, Disc, Play } from 'lucide-react';
+import { LayoutDashboard, FolderOpen, Settings, LogOut, Zap } from 'lucide-react';
 import { getSidebarData } from '@/lib/actions-navigation';
 
 export default function Sidebar() {
@@ -33,6 +33,7 @@ export default function Sidebar() {
             <nav className="space-y-3 mb-8">
                 <NavItem href="/dashboard" icon={<LayoutDashboard size={20} />} label="Overview" active={pathname === '/dashboard' || pathname === '/dashboard/'} />
                 <NavItem href="/dashboard/courses" icon={<FolderOpen size={20} />} label="Library" active={pathname.startsWith('/dashboard/courses')} />
+                <NavItem href="/quick-study" icon={<Zap size={20} />} label="Quick Study" active={pathname.startsWith('/quick-study')} />
                 <NavItem href="/dashboard/settings" icon={<Settings size={20} />} label="Settings" active={pathname === '/dashboard/settings'} />
             </nav>
 

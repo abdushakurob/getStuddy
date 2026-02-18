@@ -275,7 +275,7 @@ export async function startQuickStudy(formData: FormData) {
     let targetCourseId: string | null = null;
     let resourceIds: string[] = [];
 
-    if (courseId && courseId !== '__new__' && courseId !== '') {
+    if (courseId && courseId !== '__new__' && courseId !== '' && courseId !== '__auto__') {
         // User selected existing course - load its materials
         targetCourseId = courseId;
         
