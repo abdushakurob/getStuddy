@@ -251,11 +251,20 @@ export async function deleteHighlight(sessionId: string, highlightId: string) {
  * Start a Quick Study session - fast entry for urgent help
  */
 export async function startQuickStudy(formData: FormData) {
-    const session = await auth();
-    if (!session?.user?.id) throw new Error('Unauthorized');
-
     const query = formData.get('query') as string;
     const courseId = formData.get('courseId') as string | null;
+
+    const sessionId = await createQuickStudySession(query, courseId);
+
+    redirect(`/work/${sessionId}`);
+}
+
+/**
+ * Create a Quick Study session and return session ID (for client-side upload flow)
+ */
+export async function createQuickStudySession(query: string, courseId: string | null = null) {
+    const session = await auth();
+    if (!session?.user?.id) throw new Error('Unauthorized');
 
     if (!query?.trim()) {
         throw new Error('Please enter what you need help with');
@@ -328,6 +337,5 @@ export async function startQuickStudy(formData: FormData) {
         }
     })());
 
-    // Redirect to workspace
-    redirect(`/work/${newSession._id.toString()}`);
+    return newSession._id.toString();
 }

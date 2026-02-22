@@ -19,6 +19,7 @@ import {
     Map as MapIcon,
     StickyNote,
     Upload,
+    RotateCcw,
 
     Clock,
     RefreshCw
@@ -226,7 +227,7 @@ export default function AgentCanvas({
                 role: 'assistant',
                 content: `⚠️ **Error**: ${errorMessage}`,
                 suggestedActions: [{
-                    label: '🔄 Retry',
+                    label: 'Retry',
                     intent: `retry:${message}`,
                     priority: 'primary' as const
                 }]
@@ -648,11 +649,12 @@ export default function AgentCanvas({
                                         key={idx}
                                         onClick={() => handleAction(action.label, action.intent)}
                                         disabled={loading}
-                                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 ${action.priority === 'primary'
+                                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50 inline-flex items-center gap-1.5 ${action.priority === 'primary'
                                             ? 'bg-[#E3F2DF] text-[#4C8233] hover:bg-[#4C8233] hover:text-white border border-[#4C8233]/20'
                                             : 'bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200'
                                             }`}
                                     >
+                                        {action.intent.startsWith('retry:') && <RotateCcw size={12} />}
                                         {action.label}
                                     </button>
                                 ))}

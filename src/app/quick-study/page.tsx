@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { getCourses } from "@/lib/actions-course";
-import { startQuickStudy } from "@/lib/actions-session";
+import { createQuickStudySession } from "@/lib/actions-session";
 import { redirect } from "next/navigation";
 import QuickStudyShell from "@/components/quick-study/QuickStudyShell";
 
@@ -21,7 +21,7 @@ export default async function QuickStudyPage({ searchParams }: Props) {
     <QuickStudyShell
       courses={courses}
       preselectedCourseId={preselectedCourseId}
-      action={startQuickStudy}
+      createSessionAction={createQuickStudySession}
     />
   );
 }

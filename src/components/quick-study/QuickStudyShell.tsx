@@ -1,11 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Zap, Upload, FileText, Image as ImageIcon, Video, File, MessageSquare } from 'lucide-react';
+import { Zap, Upload, FileText, Image as ImageIcon, Video, File, MessageSquare, Loader2 } from 'lucide-react';
+import { useUploadThing } from '@/lib/uploadthing';
 
 interface CourseOption {
   id: string;
@@ -15,18 +17,54 @@ interface CourseOption {
 interface QuickStudyShellProps {
   courses: CourseOption[];
   preselectedCourseId?: string;
-  action: (formData: FormData) => void | Promise<void>;
+  createSessionAction: (query: string, courseId?: string | null) => Promise<string>;
 }
 
-export default function QuickStudyShell({ courses, preselectedCourseId, action }: QuickStudyShellProps) {
+export default function QuickStudyShell({ courses, preselectedCourseId, createSessionAction }: QuickStudyShellProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'chat' | 'upload'>('chat');
+  const [query, setQuery] = useState('');
+  const [selectedCourse, setSelectedCourse] = useState<string | undefined>(preselectedCourseId || undefined);
+  const [files, setFiles] = useState<File[]>([]);
+  const [isStarting, setIsStarting] = useState(false);
 
   const hasCourses = courses.length > 0;
   const defaultCourse = useMemo(() => preselectedCourseId || undefined, [preselectedCourseId]);
 
+  const { startUpload } = useUploadThing("resourceUploader");
+
+  const handleStart = async () => {
+    if (!query.trim() || isStarting) return;
+
+    setIsStarting(true);
+    try {
+      const normalizedCourse = selectedCourse && selectedCourse !== '__auto__' ? selectedCourse : null;
+      const sessionId = await createSessionAction(query.trim(), normalizedCourse);
+
+      if (files.length > 0) {
+        const uploadInput: { sessionId: string; courseId?: string; folderId: string } = {
+          sessionId,
+          folderId: 'null'
+        };
+
+        if (selectedCourse && selectedCourse !== '__auto__' && selectedCourse !== '__new__') {
+          uploadInput.courseId = selectedCourse;
+        }
+
+        await startUpload(files, uploadInput);
+      }
+
+      router.push(`/work/${sessionId}`);
+    } catch (error) {
+      console.error('Quick Study start failed:', error);
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <form action={action} className="h-full flex flex-col">
+      <div className="h-full flex flex-col">
         {/* Header */}
         <div className="shrink-0 px-8 pt-8 pb-6 flex items-center justify-between border-b border-gray-100">
           <div className="flex items-center gap-4">
@@ -44,7 +82,12 @@ export default function QuickStudyShell({ courses, preselectedCourseId, action }
           <div className="flex items-center gap-3">
             {hasCourses && (
               <div className="w-[280px]">
-                <Select name="courseId" defaultValue={defaultCourse}>
+                <Select
+                  name="courseId"
+                  value={selectedCourse}
+                  defaultValue={defaultCourse}
+                  onValueChange={setSelectedCourse}
+                >
                   <SelectTrigger className="rounded-2xl border-gray-200 bg-white">
                     <SelectValue placeholder="Let the AI decide" />
                   </SelectTrigger>
@@ -115,7 +158,8 @@ export default function QuickStudyShell({ courses, preselectedCourseId, action }
                 <div className="bg-gray-50 border border-gray-100 rounded-[24px] p-5">
                   <Textarea
                     id="query"
-                    name="query"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
                     placeholder="Tell me what you're stuck on... Be specific so I can help you better."
                     required
                     className="min-h-[220px] text-base resize-none bg-transparent border-none focus-visible:ring-0 focus-visible:ring-offset-0 placeholder:text-gray-400"
@@ -123,9 +167,9 @@ export default function QuickStudyShell({ courses, preselectedCourseId, action }
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <Button type="submit" size="lg" className="rounded-2xl px-8 py-6 text-base">
-                    <Zap className="mr-2 h-5 w-5" />
-                    Start Quick Study
+                  <Button type="button" size="lg" className="rounded-2xl px-8 py-6 text-base" onClick={handleStart} disabled={isStarting || !query.trim()}>
+                    {isStarting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Zap className="mr-2 h-5 w-5" />}
+                    {isStarting ? 'Starting...' : 'Start Quick Study'}
                   </Button>
                   <Button
                     type="button"
@@ -202,11 +246,15 @@ export default function QuickStudyShell({ courses, preselectedCourseId, action }
                   </p>
                   <input
                     type="file"
-                    name="files"
                     multiple
                     accept=".pdf,.png,.jpg,.jpeg,.gif,.mp4,.mov,.doc,.docx,.txt"
                     className="hidden"
                     id="file-upload"
+                    onChange={(e) => {
+                      if (e.target.files) {
+                        setFiles(Array.from(e.target.files));
+                      }
+                    }}
                   />
                   <Label htmlFor="file-upload" className="cursor-pointer">
                     <Button type="button" variant="outline" size="lg" asChild className="rounded-2xl mt-2">
@@ -220,18 +268,18 @@ export default function QuickStudyShell({ courses, preselectedCourseId, action }
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4 items-center">
-                <Button type="submit" size="lg" className="rounded-2xl px-8 py-6 text-base">
-                  <Zap className="mr-2 h-5 w-5" />
-                  Start Quick Study
+                <Button type="button" size="lg" className="rounded-2xl px-8 py-6 text-base" onClick={handleStart} disabled={isStarting || !query.trim()}>
+                  {isStarting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Zap className="mr-2 h-5 w-5" />}
+                  {isStarting ? 'Starting...' : 'Start Quick Study'}
                 </Button>
                 <p className="text-sm text-gray-500">
-                  Uploading helps me give specific, grounded explanations from your materials.
+                  {files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''} selected.` : 'Uploading helps me give specific, grounded explanations from your materials.'}
                 </p>
               </div>
             </div>
           </div>
         </div>
-      </form>
+      </div>
     </div>
   );
 }
