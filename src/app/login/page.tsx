@@ -61,30 +61,84 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[#F3F4F6] p-6 selection:bg-[#4C8233] selection:text-white">
-            <div className="w-full max-w-md">
+        <div className="min-h-screen bg-gradient-to-b from-[#eef3ef] to-[#f8f9fa] selection:bg-[#4C8233] selection:text-white px-4 py-8 md:px-8 md:py-10">
+            <div className="mx-auto w-full max-w-7xl grid gap-7 lg:grid-cols-[1.15fr_0.85fr]">
 
-                {/* Brand Header */}
-                <div className="flex justify-center mb-8">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-[#4C8233] flex items-center justify-center text-white font-bold text-lg">S</div>
-                        <span className="font-extrabold text-2xl tracking-tight text-[#2F4F2F]">gostuddy</span>
+                <section className="hidden lg:flex rounded-[36px] bg-[#111827] text-white p-10 xl:p-12 relative overflow-hidden border border-white/10">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(76,130,51,0.45),transparent_45%)]" />
+                    <div className="absolute -bottom-20 -left-10 w-72 h-72 rounded-full bg-[#4C8233]/20 blur-3xl" />
+
+                    <div className="relative z-10 flex w-full flex-col justify-between">
+                        <div>
+                            <div className="inline-flex items-center gap-3 rounded-2xl bg-white/10 border border-white/20 px-4 py-2.5">
+                                <div className="w-8 h-8 rounded-lg bg-[#4C8233] flex items-center justify-center text-white font-bold text-sm">S</div>
+                                <span className="font-extrabold text-xl tracking-tight">gostuddy</span>
+                            </div>
+
+                            <h2 className="mt-8 text-4xl xl:text-5xl font-black leading-[1.05] max-w-xl">
+                                Learn with an AI partner that keeps you focused.
+                            </h2>
+                            <p className="mt-4 text-white/75 text-base max-w-lg leading-relaxed">
+                                Studdy turns scattered materials into guided sessions, with context-aware help, resource navigation, and progress memory.
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-3 max-w-xl mt-10">
+                            <div className="rounded-2xl bg-white/10 border border-white/15 p-4">
+                                <p className="text-[11px] uppercase tracking-wide text-white/65">Sessions</p>
+                                <p className="text-sm font-bold mt-1">Structured roadmap</p>
+                            </div>
+                            <div className="rounded-2xl bg-white/10 border border-white/15 p-4">
+                                <p className="text-[11px] uppercase tracking-wide text-white/65">Resources</p>
+                                <p className="text-sm font-bold mt-1">PDF + video aware</p>
+                            </div>
+                            <div className="rounded-2xl bg-white/10 border border-white/15 p-4">
+                                <p className="text-[11px] uppercase tracking-wide text-white/65">Flow</p>
+                                <p className="text-sm font-bold mt-1">Chat + action loop</p>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                </section>
 
-                {/* Glass Card */}
-                <div className="glass-panel p-8 rounded-[32px] bg-white shadow-xl shadow-[#4C8233]/10 relative overflow-hidden">
+                <section className="rounded-[32px] bg-white shadow-2xl shadow-[#4C8233]/10 border border-gray-100 p-6 md:p-8 lg:p-10 relative overflow-hidden">
+                    <div className="absolute -top-20 -right-24 w-56 h-56 bg-[#4C8233]/10 rounded-full blur-3xl pointer-events-none" />
 
-                    <div className="text-center mb-8">
-                        <h1 className="text-2xl font-black text-[#1F2937] mb-2">
-                            {isLogin ? 'Welcome Back.' : 'Create Profile'}
-                        </h1>
-                        <p className="text-gray-500 font-medium text-sm">
-                            {isLogin ? 'Resume your learning.' : 'Your companion is waiting.'}
-                        </p>
-                    </div>
+                    <div className="relative z-10">
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 lg:hidden">
+                                <div className="w-9 h-9 rounded-lg bg-[#4C8233] flex items-center justify-center text-white font-bold text-sm">S</div>
+                                <span className="font-extrabold text-xl tracking-tight text-[#2F4F2F]">gostuddy</span>
+                            </div>
+                            <div className="w-full lg:w-auto">
+                                <div className="inline-flex rounded-2xl border border-gray-200 bg-gray-50 p-1.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsLogin(true)}
+                                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${isLogin ? 'bg-white text-[#1F2937] shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                                    >
+                                        Log in
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsLogin(false)}
+                                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${!isLogin ? 'bg-white text-[#1F2937] shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                                    >
+                                        Sign up
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
 
-                    <form action={dispatch} className="space-y-4">
+                        <div className="mt-8 mb-7">
+                            <h1 className="text-3xl font-black text-[#111827]">
+                                {isLogin ? 'Welcome back' : 'Create your account'}
+                            </h1>
+                            <p className="text-gray-500 mt-2 text-sm">
+                                {isLogin ? 'Continue where you left off.' : 'Set up your account and start studying smarter.'}
+                            </p>
+                        </div>
+
+                    <form action={dispatch} className="space-y-4.5">
                         <input type="hidden" name="mode" value={isLogin ? 'login' : 'register'} />
                         {!isLogin && (
                             <div>
@@ -197,15 +251,13 @@ export default function LoginPage() {
                         Continue with Google
                     </button>
 
-                    <div className="mt-8 text-center">
+                    <div className="mt-6 text-center lg:hidden">
                         <button onClick={toggleMode} className="text-sm font-bold text-gray-400 hover:text-[#4C8233] transition-colors">
-                            {isLogin ? "New here? Create Profile" : "Already have an account? Login"}
+                            {isLogin ? 'New here? Create Profile' : 'Already have an account? Login'}
                         </button>
                     </div>
-
-                    {/* Decorative Blob */}
-                    <div className="absolute -top-20 -right-20 w-40 h-40 bg-[#4C8233]/10 rounded-full blur-3xl pointer-events-none"></div>
-                </div>
+                    </div>
+                </section>
             </div>
         </div>
     );
