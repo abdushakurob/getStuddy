@@ -96,7 +96,7 @@ export async function handleAuth(prevState: AuthActionState, formData: FormData)
     }
 }
 
-export async function resendVerificationEmail(formData: FormData): Promise<AuthActionState> {
+export async function resendVerificationEmail(prevState: AuthActionState, formData: FormData): Promise<AuthActionState> {
     const email = String(formData.get('email') || '').toLowerCase().trim();
     if (!email) return { status: 'error', message: 'Email is required.' };
 
@@ -109,7 +109,7 @@ export async function resendVerificationEmail(formData: FormData): Promise<AuthA
     return { status: 'success', message: 'Verification email sent.' };
 }
 
-export async function requestPasswordReset(formData: FormData): Promise<AuthActionState> {
+export async function requestPasswordReset(prevState: AuthActionState, formData: FormData): Promise<AuthActionState> {
     const email = String(formData.get('email') || '').toLowerCase().trim();
     if (!email) return { status: 'error', message: 'Email is required.' };
 
@@ -131,7 +131,7 @@ export async function confirmEmailVerification(rawToken: string): Promise<AuthAc
     return { status: 'success', message: 'Email verified successfully. You can now log in.' };
 }
 
-export async function resetPasswordWithToken(formData: FormData): Promise<AuthActionState> {
+export async function resetPasswordWithToken(prevState: AuthActionState, formData: FormData): Promise<AuthActionState> {
     const token = String(formData.get('token') || '');
     const password = String(formData.get('password') || '');
     const confirmPassword = String(formData.get('confirmPassword') || '');
