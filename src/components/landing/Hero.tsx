@@ -20,7 +20,7 @@ const Hero = () => {
           understanding. You do the learning. It handles the logistics.
         </p>
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-          <a href="/login">
+          <a href="/signup">
             <Button size="lg" className="bg-primary px-8 text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 transition-transform hover:scale-105">
               Get Started
               <ArrowRight className="ml-2 h-4 w-4" />

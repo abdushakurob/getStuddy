@@ -82,26 +82,21 @@ export default function LoginPage() {
                             </div>
 
                             <h2 className="mt-10 max-w-xl text-5xl font-black leading-[1.02]">
-                                Full-focus studying with your AI companion.
+                                Study with clarity, not chaos.
                             </h2>
                             <p className="mt-5 max-w-lg text-base leading-relaxed text-white/75">
-                                Organize materials, follow guided sessions, and keep momentum with context-aware learning across docs and video.
+                                One focused place to learn from your materials with guidance that keeps you moving.
                             </p>
                         </div>
 
-                        <div className="grid max-w-xl grid-cols-3 gap-3">
-                            <div className="rounded-2xl border border-white/15 bg-white/10 p-4">
-                                <p className="text-[11px] uppercase tracking-wide text-white/60">Study</p>
-                                <p className="mt-1 text-sm font-bold">Planned roadmap</p>
-                            </div>
-                            <div className="rounded-2xl border border-white/15 bg-white/10 p-4">
-                                <p className="text-[11px] uppercase tracking-wide text-white/60">Context</p>
-                                <p className="mt-1 text-sm font-bold">PDF + video aware</p>
-                            </div>
-                            <div className="rounded-2xl border border-white/15 bg-white/10 p-4">
-                                <p className="text-[11px] uppercase tracking-wide text-white/60">Flow</p>
-                                <p className="mt-1 text-sm font-bold">Agentic guidance</p>
-                            </div>
+                        <div className="max-w-xl rounded-3xl border border-white/15 bg-white/10 p-6 backdrop-blur-sm">
+                            <p className="text-2xl leading-relaxed font-semibold text-white/95">
+                                “Studdy helped me stop jumping between tabs and actually finish a full study session.”
+                            </p>
+                            <div className="mt-4 h-px w-full bg-white/15" />
+                            <p className="mt-4 text-sm text-white/70">
+                                — A focused student, preparing for finals
+                            </p>
                         </div>
                     </div>
                 </section>

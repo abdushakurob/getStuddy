@@ -12,7 +12,7 @@ const FinalCTA = () => {
           Experience the first study tool that actually understands what you're trying to do.
         </p>
         <div className="mt-10">
-          <a href="/login">
+          <a href="/signup">
             <Button size="lg" className="bg-primary px-10 py-6 text-lg text-primary-foreground hover:bg-primary/90">
               Start Learning Now
               <ArrowRight className="ml-2 h-5 w-5" />

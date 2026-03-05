@@ -35,7 +35,7 @@ const Navbar = () => {
           <a href="/login">
             <Button variant="ghost" size="sm">Log In</Button>
           </a>
-          <a href="/login">
+          <a href="/signup">
             <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
               Get Started
             </Button>
@@ -66,7 +66,7 @@ const Navbar = () => {
               <a href="/login">
                 <Button variant="ghost" size="sm">Log In</Button>
               </a>
-              <a href="/login">
+              <a href="/signup">
                 <Button size="sm" className="bg-primary text-primary-foreground">Get Started</Button>
               </a>
             </div>
