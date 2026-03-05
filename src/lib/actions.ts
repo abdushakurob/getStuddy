@@ -10,6 +10,8 @@ import { sendResetPasswordEmail, sendVerificationEmail, verifyAuthToken } from '
 export type AuthActionState = {
     status: 'idle' | 'success' | 'error';
     message?: string;
+    code?: 'EMAIL_NOT_VERIFIED' | 'GENERIC_ERROR' | 'SUCCESS';
+    email?: string;
 };
 
 export async function authenticate(prevState: AuthActionState, formData: FormData): Promise<AuthActionState> {
@@ -17,35 +19,40 @@ export async function authenticate(prevState: AuthActionState, formData: FormDat
     const password = String(formData.get('password') || '');
 
     if (!email || !password) {
-        return { status: 'error', message: 'Email and password are required.' };
+        return { status: 'error', code: 'GENERIC_ERROR', message: 'Email and password are required.' };
     }
 
     await dbConnect();
     const user = await User.findOne({ email }).select('+password emailVerified').lean();
 
     if (!user || !user.password) {
-        return { status: 'error', message: 'Invalid credentials.' };
+        return { status: 'error', code: 'GENERIC_ERROR', message: 'Invalid credentials.' };
     }
 
     const passwordMatches = await bcrypt.compare(password, user.password);
     if (!passwordMatches) {
-        return { status: 'error', message: 'Invalid credentials.' };
+        return { status: 'error', code: 'GENERIC_ERROR', message: 'Invalid credentials.' };
     }
 
     if (!user.emailVerified) {
-        return { status: 'error', message: 'Please verify your email before logging in.' };
+        return {
+            status: 'error',
+            code: 'EMAIL_NOT_VERIFIED',
+            email,
+            message: 'Please verify your email before logging in.'
+        };
     }
 
     try {
         await signIn('credentials', formData);
-        return { status: 'success' };
+        return { status: 'success', code: 'SUCCESS' };
     } catch (error) {
         if (error instanceof AuthError) {
             switch (error.type) {
                 case 'CredentialsSignin':
-                    return { status: 'error', message: 'Invalid credentials.' };
+                    return { status: 'error', code: 'GENERIC_ERROR', message: 'Invalid credentials.' };
                 default:
-                    return { status: 'error', message: 'Something went wrong.' };
+                    return { status: 'error', code: 'GENERIC_ERROR', message: 'Something went wrong.' };
             }
         }
         throw error;
@@ -57,13 +64,13 @@ export async function register(prevState: AuthActionState, formData: FormData): 
     const email = (formData.get('email') as string)?.toLowerCase().trim();
     const password = formData.get('password') as string;
 
-    if (!email || !password || !name) return { status: 'error', message: 'Missing fields' };
+    if (!email || !password || !name) return { status: 'error', code: 'GENERIC_ERROR', message: 'Missing fields' };
 
     await dbConnect();
 
     // Check if user exists
     const existingUser = await User.findOne({ email });
-    if (existingUser) return { status: 'error', message: 'User already exists.' };
+    if (existingUser) return { status: 'error', code: 'GENERIC_ERROR', message: 'User already exists.' };
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -83,6 +90,7 @@ export async function register(prevState: AuthActionState, formData: FormData): 
 
     return {
         status: 'success',
+        code: 'SUCCESS',
         message: 'Account created. Check your email to verify your account before logging in.'
     };
 }
@@ -98,37 +106,37 @@ export async function handleAuth(prevState: AuthActionState, formData: FormData)
 
 export async function resendVerificationEmail(prevState: AuthActionState, formData: FormData): Promise<AuthActionState> {
     const email = String(formData.get('email') || '').toLowerCase().trim();
-    if (!email) return { status: 'error', message: 'Email is required.' };
+    if (!email) return { status: 'error', code: 'GENERIC_ERROR', message: 'Email is required.' };
 
     await dbConnect();
     const user = await User.findOne({ email }).select('_id emailVerified').lean();
-    if (!user) return { status: 'success', message: 'If the account exists, a verification email has been sent.' };
-    if (user.emailVerified) return { status: 'success', message: 'Email is already verified. You can log in.' };
+    if (!user) return { status: 'success', code: 'SUCCESS', message: 'If the account exists, a verification email has been sent.' };
+    if (user.emailVerified) return { status: 'success', code: 'SUCCESS', message: 'Email is already verified. You can log in.' };
 
     await sendVerificationEmail(user._id.toString());
-    return { status: 'success', message: 'Verification email sent.' };
+    return { status: 'success', code: 'SUCCESS', message: 'Verification email sent.' };
 }
 
 export async function requestPasswordReset(prevState: AuthActionState, formData: FormData): Promise<AuthActionState> {
     const email = String(formData.get('email') || '').toLowerCase().trim();
-    if (!email) return { status: 'error', message: 'Email is required.' };
+    if (!email) return { status: 'error', code: 'GENERIC_ERROR', message: 'Email is required.' };
 
     await sendResetPasswordEmail(email);
-    return { status: 'success', message: 'If this email exists, a reset link has been sent.' };
+    return { status: 'success', code: 'SUCCESS', message: 'If this email exists, a reset link has been sent.' };
 }
 
 export async function confirmEmailVerification(rawToken: string): Promise<AuthActionState> {
-    if (!rawToken) return { status: 'error', message: 'Invalid verification link.' };
+    if (!rawToken) return { status: 'error', code: 'GENERIC_ERROR', message: 'Invalid verification link.' };
 
     const tokenDoc = await verifyAuthToken(rawToken, 'verify_email');
-    if (!tokenDoc) return { status: 'error', message: 'Verification link is invalid or expired.' };
+    if (!tokenDoc) return { status: 'error', code: 'GENERIC_ERROR', message: 'Verification link is invalid or expired.' };
 
     await dbConnect();
     await User.findByIdAndUpdate(tokenDoc.userId, {
         $set: { emailVerified: new Date() }
     });
 
-    return { status: 'success', message: 'Email verified successfully. You can now log in.' };
+    return { status: 'success', code: 'SUCCESS', message: 'Email verified successfully. You can now log in.' };
 }
 
 export async function resetPasswordWithToken(prevState: AuthActionState, formData: FormData): Promise<AuthActionState> {
@@ -136,12 +144,12 @@ export async function resetPasswordWithToken(prevState: AuthActionState, formDat
     const password = String(formData.get('password') || '');
     const confirmPassword = String(formData.get('confirmPassword') || '');
 
-    if (!token) return { status: 'error', message: 'Invalid reset link.' };
-    if (password.length < 6) return { status: 'error', message: 'Password must be at least 6 characters.' };
-    if (password !== confirmPassword) return { status: 'error', message: 'Passwords do not match.' };
+    if (!token) return { status: 'error', code: 'GENERIC_ERROR', message: 'Invalid reset link.' };
+    if (password.length < 6) return { status: 'error', code: 'GENERIC_ERROR', message: 'Password must be at least 6 characters.' };
+    if (password !== confirmPassword) return { status: 'error', code: 'GENERIC_ERROR', message: 'Passwords do not match.' };
 
     const tokenDoc = await verifyAuthToken(token, 'reset_password');
-    if (!tokenDoc) return { status: 'error', message: 'Reset link is invalid or expired.' };
+    if (!tokenDoc) return { status: 'error', code: 'GENERIC_ERROR', message: 'Reset link is invalid or expired.' };
 
     const hashedPassword = await bcrypt.hash(password, 10);
     await dbConnect();
@@ -149,5 +157,5 @@ export async function resetPasswordWithToken(prevState: AuthActionState, formDat
         $set: { password: hashedPassword }
     });
 
-    return { status: 'success', message: 'Password reset successful. You can now log in.' };
+    return { status: 'success', code: 'SUCCESS', message: 'Password reset successful. You can now log in.' };
 }
