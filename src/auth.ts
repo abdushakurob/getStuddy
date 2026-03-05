@@ -10,7 +10,7 @@ import bcrypt from 'bcryptjs';
 async function getUser(email: string) {
     try {
         await dbConnect();
-        const user = await User.findOne({ email }).select('+password').lean();
+        const user = await User.findOne({ email }).select('+password emailVerified').lean();
         return user;
     } catch (error) {
         console.error('Failed to fetch user:', error);
@@ -29,6 +29,7 @@ async function getOrCreateOAuthUser(params: { email: string; name?: string | nul
             email,
             name: name || email.split('@')[0],
             avatarUrl: image || undefined,
+            emailVerified: new Date(),
             xp: 0,
             level: 1,
             credits: 100
@@ -39,7 +40,8 @@ async function getOrCreateOAuthUser(params: { email: string; name?: string | nul
             {
                 $set: {
                     ...(name ? { name } : {}),
-                    ...(image ? { avatarUrl: image } : {})
+                    ...(image ? { avatarUrl: image } : {}),
+                    emailVerified: user.emailVerified || new Date()
                 }
             }
         );
@@ -68,6 +70,8 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
 
                     // Note: If user has no password (e.g. OAuth), handled here
                     if (!user.password) return null;
+
+                    if (!user.emailVerified) return null;
 
                     const passwordsMatch = await bcrypt.compare(password, user.password);
                     if (passwordsMatch) {

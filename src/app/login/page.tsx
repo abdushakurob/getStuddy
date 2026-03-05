@@ -2,14 +2,16 @@
 
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { handleAuth } from '@/lib/actions';
+import { AuthActionState, handleAuth, resendVerificationEmail } from '@/lib/actions';
 import { useState } from 'react';
-import { ArrowRight, Bot, Loader2 } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 import { signIn } from 'next-auth/react';
+import Link from 'next/link';
 
 export default function LoginPage() {
     const [isLogin, setIsLogin] = useState(true);
-    const [errorMessage, dispatch, isPending] = useActionState(handleAuth, undefined);
+    const [authState, dispatch] = useActionState<AuthActionState, FormData>(handleAuth, { status: 'idle' });
+    const [resendState, resendDispatch] = useActionState<AuthActionState, FormData>(resendVerificationEmail, { status: 'idle' });
     const [googlePending, setGooglePending] = useState(false);
 
     const toggleMode = () => {
@@ -75,9 +77,20 @@ export default function LoginPage() {
                             <LoginButton label={isLogin ? 'Access Dashboard' : 'Start Learning'} />
                         </div>
 
-                        {errorMessage && (
-                            <div className="p-4 bg-red-50 text-red-600 rounded-xl text-sm font-bold text-center border border-red-100 animate-in fade-in slide-in-from-top-1">
-                                {errorMessage}
+                        {authState.message && (
+                            <div className={`p-4 rounded-xl text-sm font-bold text-center border animate-in fade-in slide-in-from-top-1 ${authState.status === 'success'
+                                    ? 'bg-green-50 text-green-700 border-green-100'
+                                    : 'bg-red-50 text-red-600 border-red-100'
+                                }`}>
+                                {authState.message}
+                            </div>
+                        )}
+
+                        {isLogin && (
+                            <div className="flex items-center justify-between text-xs pt-1">
+                                <Link href="/forgot-password" className="font-bold text-gray-500 hover:text-[#4C8233] transition-colors">
+                                    Forgot password?
+                                </Link>
                             </div>
                         )}
                     </form>
@@ -97,6 +110,32 @@ export default function LoginPage() {
                         {googlePending ? <Loader2 className="animate-spin" /> : <span className="text-base">G</span>}
                         Continue with Google
                     </button>
+
+                    {isLogin && (
+                        <form action={resendDispatch} className="mt-4 space-y-2">
+                            <label className="block text-xs font-bold text-gray-500 uppercase ml-1">Didn&apos;t receive verification email?</label>
+                            <div className="flex gap-2">
+                                <input
+                                    name="email"
+                                    type="email"
+                                    placeholder="student@example.com"
+                                    className="w-full p-3 bg-gray-50 rounded-xl border border-gray-100 focus:outline-none focus:border-[#4C8233] text-sm font-semibold text-[#1F2937] placeholder-gray-400 transition-colors"
+                                    required
+                                />
+                                <button
+                                    type="submit"
+                                    className="px-4 py-3 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50"
+                                >
+                                    Resend
+                                </button>
+                            </div>
+                            {resendState.message && (
+                                <p className={`text-xs font-semibold ${resendState.status === 'success' ? 'text-green-700' : 'text-red-600'}`}>
+                                    {resendState.message}
+                                </p>
+                            )}
+                        </form>
+                    )}
 
                     <div className="mt-8 text-center">
                         <button onClick={toggleMode} className="text-sm font-bold text-gray-400 hover:text-[#4C8233] transition-colors">

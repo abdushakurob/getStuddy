@@ -177,9 +177,14 @@ sequenceDiagram
     AUTH_SECRET=your_auth_secret
     GOOGLE_CLIENT_ID=your_google_client_id
     GOOGLE_CLIENT_SECRET=your_google_client_secret
+    NEXTAUTH_URL=http://localhost:3000
 
     # AI
     GEMINI_API_KEY=your_gemini_api_key
+
+    # Email (Resend)
+    RESEND_API_KEY=re_...
+    EMAIL_FROM="Studdy <onboarding@resend.dev>"
 
     # UploadThing (for file storage)
     UPLOADTHING_SECRET=...

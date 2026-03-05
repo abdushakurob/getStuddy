@@ -5,65 +5,149 @@ import { AuthError } from 'next-auth';
 import dbConnect from './db';
 import User from '@/models/User';
 import bcrypt from 'bcryptjs';
+import { sendResetPasswordEmail, sendVerificationEmail, verifyAuthToken } from './auth-email';
 
-export async function authenticate(prevState: string | undefined, formData: FormData) {
+export type AuthActionState = {
+    status: 'idle' | 'success' | 'error';
+    message?: string;
+};
+
+export async function authenticate(prevState: AuthActionState, formData: FormData): Promise<AuthActionState> {
+    const email = String(formData.get('email') || '').toLowerCase().trim();
+    const password = String(formData.get('password') || '');
+
+    if (!email || !password) {
+        return { status: 'error', message: 'Email and password are required.' };
+    }
+
+    await dbConnect();
+    const user = await User.findOne({ email }).select('+password emailVerified').lean();
+
+    if (!user || !user.password) {
+        return { status: 'error', message: 'Invalid credentials.' };
+    }
+
+    const passwordMatches = await bcrypt.compare(password, user.password);
+    if (!passwordMatches) {
+        return { status: 'error', message: 'Invalid credentials.' };
+    }
+
+    if (!user.emailVerified) {
+        return { status: 'error', message: 'Please verify your email before logging in.' };
+    }
+
     try {
         await signIn('credentials', formData);
+        return { status: 'success' };
     } catch (error) {
         if (error instanceof AuthError) {
             switch (error.type) {
                 case 'CredentialsSignin':
-                    return 'Invalid credentials.';
+                    return { status: 'error', message: 'Invalid credentials.' };
                 default:
-                    return 'Something went wrong.';
+                    return { status: 'error', message: 'Something went wrong.' };
             }
         }
         throw error;
     }
 }
 
-export async function register(prevState: string | undefined, formData: FormData) {
+export async function register(prevState: AuthActionState, formData: FormData): Promise<AuthActionState> {
     const name = formData.get('name') as string;
-    const email = formData.get('email') as string;
+    const email = (formData.get('email') as string)?.toLowerCase().trim();
     const password = formData.get('password') as string;
 
-    if (!email || !password || !name) return 'Missing fields';
+    if (!email || !password || !name) return { status: 'error', message: 'Missing fields' };
 
     await dbConnect();
 
     // Check if user exists
     const existingUser = await User.findOne({ email });
-    if (existingUser) return 'User already exists.';
+    if (existingUser) return { status: 'error', message: 'User already exists.' };
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create User
-    await User.create({
+    const createdUser = await User.create({
         name,
         email,
         password: hashedPassword,
+        emailVerified: null,
         xp: 0,
         level: 1,
         credits: 100
     });
 
-    // Auto login
-    try {
-        await signIn('credentials', formData);
-    } catch (error) {
-        if (error instanceof AuthError) {
-            return 'Account created but login failed.';
-        }
-        throw error;
-    }
+    await sendVerificationEmail(createdUser._id.toString());
+
+    return {
+        status: 'success',
+        message: 'Account created. Check your email to verify your account before logging in.'
+    };
 }
 
-export async function handleAuth(prevState: string | undefined, formData: FormData) {
+export async function handleAuth(prevState: AuthActionState, formData: FormData): Promise<AuthActionState> {
     const mode = formData.get('mode');
     if (mode === 'login') {
         return authenticate(prevState, formData);
     } else {
         return register(prevState, formData);
     }
+}
+
+export async function resendVerificationEmail(formData: FormData): Promise<AuthActionState> {
+    const email = String(formData.get('email') || '').toLowerCase().trim();
+    if (!email) return { status: 'error', message: 'Email is required.' };
+
+    await dbConnect();
+    const user = await User.findOne({ email }).select('_id emailVerified').lean();
+    if (!user) return { status: 'success', message: 'If the account exists, a verification email has been sent.' };
+    if (user.emailVerified) return { status: 'success', message: 'Email is already verified. You can log in.' };
+
+    await sendVerificationEmail(user._id.toString());
+    return { status: 'success', message: 'Verification email sent.' };
+}
+
+export async function requestPasswordReset(formData: FormData): Promise<AuthActionState> {
+    const email = String(formData.get('email') || '').toLowerCase().trim();
+    if (!email) return { status: 'error', message: 'Email is required.' };
+
+    await sendResetPasswordEmail(email);
+    return { status: 'success', message: 'If this email exists, a reset link has been sent.' };
+}
+
+export async function confirmEmailVerification(rawToken: string): Promise<AuthActionState> {
+    if (!rawToken) return { status: 'error', message: 'Invalid verification link.' };
+
+    const tokenDoc = await verifyAuthToken(rawToken, 'verify_email');
+    if (!tokenDoc) return { status: 'error', message: 'Verification link is invalid or expired.' };
+
+    await dbConnect();
+    await User.findByIdAndUpdate(tokenDoc.userId, {
+        $set: { emailVerified: new Date() }
+    });
+
+    return { status: 'success', message: 'Email verified successfully. You can now log in.' };
+}
+
+export async function resetPasswordWithToken(formData: FormData): Promise<AuthActionState> {
+    const token = String(formData.get('token') || '');
+    const password = String(formData.get('password') || '');
+    const confirmPassword = String(formData.get('confirmPassword') || '');
+
+    if (!token) return { status: 'error', message: 'Invalid reset link.' };
+    if (password.length < 6) return { status: 'error', message: 'Password must be at least 6 characters.' };
+    if (password !== confirmPassword) return { status: 'error', message: 'Passwords do not match.' };
+
+    const tokenDoc = await verifyAuthToken(token, 'reset_password');
+    if (!tokenDoc) return { status: 'error', message: 'Reset link is invalid or expired.' };
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await dbConnect();
+    await User.findByIdAndUpdate(tokenDoc.userId, {
+        $set: { password: hashedPassword }
+    });
+
+    return { status: 'success', message: 'Password reset successful. You can now log in.' };
 }

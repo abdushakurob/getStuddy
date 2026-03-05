@@ -5,6 +5,7 @@ export interface IUser extends Document {
     name: string;
     avatarUrl?: string;
     password?: string;
+    emailVerified?: Date | null;
 
     // Gamification Stats
     xp: number;
@@ -22,6 +23,7 @@ const UserSchema = new Schema<IUser>({
     name: { type: String, required: true },
     avatarUrl: { type: String },
     password: { type: String, select: false },
+    emailVerified: { type: Date, default: null },
 
     // Gamification Stats
     xp: { type: Number, default: 0 },
