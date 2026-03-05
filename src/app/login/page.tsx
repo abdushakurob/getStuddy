@@ -3,7 +3,7 @@
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { AuthActionState, handleAuth, resendVerificationEmail } from '@/lib/actions';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { ArrowRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
@@ -18,6 +18,7 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [resendCooldown, setResendCooldown] = useState(0);
+    const [isResending, startResending] = useTransition();
 
     useEffect(() => {
         if (resendCooldown <= 0) return;
@@ -31,6 +32,18 @@ export default function LoginPage() {
         if (resendCooldown === 0) {
             setResendCooldown(45);
         }
+    };
+
+    const handleResendVerification = () => {
+        if (!authState.email || resendCooldown > 0 || isResending) return;
+
+        startResending(() => {
+            const formData = new FormData();
+            formData.set('email', authState.email!);
+            resendDispatch(formData);
+        });
+
+        startResendCooldown();
     };
 
     const toggleMode = () => {
@@ -140,13 +153,12 @@ export default function LoginPage() {
 
                                 {isLogin && authState.code === 'EMAIL_NOT_VERIFIED' && authState.email && (
                                     <div className="mt-3">
-                                        <input type="hidden" name="email" value={authState.email} />
                                         <div className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-white/70 px-3 py-2.5">
                                             <span className="text-xs font-semibold text-red-700">Didn&apos;t receive verification email?</span>
                                             <ResendInlineButton
-                                                action={resendDispatch}
+                                                onClick={handleResendVerification}
+                                                pending={isResending}
                                                 cooldown={resendCooldown}
-                                                onStartCooldown={startResendCooldown}
                                             />
                                         </div>
                                     </div>
@@ -200,22 +212,20 @@ export default function LoginPage() {
 }
 
 function ResendInlineButton({
-    action,
+    onClick,
+    pending,
     cooldown,
-    onStartCooldown,
 }: {
-    action: (payload: FormData) => void;
+    onClick: () => void;
+    pending: boolean;
     cooldown: number;
-    onStartCooldown: () => void;
 }) {
-    const { pending } = useFormStatus();
     const isDisabled = pending || cooldown > 0;
 
     return (
         <button
-            type="submit"
-            formAction={action}
-            onClick={onStartCooldown}
+            type="button"
+            onClick={onClick}
             disabled={isDisabled}
             className="px-4 py-2.5 rounded-xl border border-red-200 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[86px]"
         >
