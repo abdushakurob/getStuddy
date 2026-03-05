@@ -5,14 +5,25 @@ import { useFormStatus } from 'react-dom';
 import { handleAuth } from '@/lib/actions';
 import { useState } from 'react';
 import { ArrowRight, Bot, Loader2 } from 'lucide-react';
+import { signIn } from 'next-auth/react';
 
 export default function LoginPage() {
     const [isLogin, setIsLogin] = useState(true);
     const [errorMessage, dispatch, isPending] = useActionState(handleAuth, undefined);
+    const [googlePending, setGooglePending] = useState(false);
 
     const toggleMode = () => {
         setIsLogin(!isLogin);
         // Reset specific error states if needed, though useFormState persist might need caution.
+    };
+
+    const handleGoogleSignIn = async () => {
+        try {
+            setGooglePending(true);
+            await signIn('google', { callbackUrl: '/dashboard' });
+        } finally {
+            setGooglePending(false);
+        }
     };
 
     return (
@@ -70,6 +81,22 @@ export default function LoginPage() {
                             </div>
                         )}
                     </form>
+
+                    <div className="my-5 flex items-center gap-3 text-xs font-bold text-gray-400 uppercase tracking-wide">
+                        <span className="h-px flex-1 bg-gray-100" />
+                        <span>or</span>
+                        <span className="h-px flex-1 bg-gray-100" />
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={handleGoogleSignIn}
+                        disabled={googlePending}
+                        className="w-full py-3.5 bg-white text-[#1F2937] rounded-2xl font-bold border border-gray-200 hover:bg-gray-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {googlePending ? <Loader2 className="animate-spin" /> : <span className="text-base">G</span>}
+                        Continue with Google
+                    </button>
 
                     <div className="mt-8 text-center">
                         <button onClick={toggleMode} className="text-sm font-bold text-gray-400 hover:text-[#4C8233] transition-colors">

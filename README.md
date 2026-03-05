@@ -175,9 +175,11 @@ sequenceDiagram
 
     # Auth
     AUTH_SECRET=your_auth_secret
+    GOOGLE_CLIENT_ID=your_google_client_id
+    GOOGLE_CLIENT_SECRET=your_google_client_secret
 
     # AI
-    GOOGLE_API_KEY=your_gemini_api_key
+    GEMINI_API_KEY=your_gemini_api_key
 
     # UploadThing (for file storage)
     UPLOADTHING_SECRET=...

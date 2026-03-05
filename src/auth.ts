@@ -1,5 +1,6 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import Google from 'next-auth/providers/google';
 import { authConfig } from './auth.config';
 import { z } from 'zod';
 import dbConnect from './lib/db';
@@ -17,9 +18,43 @@ async function getUser(email: string) {
     }
 }
 
+async function getOrCreateOAuthUser(params: { email: string; name?: string | null; image?: string | null }) {
+    const { email, name, image } = params;
+    await dbConnect();
+
+    let user = await User.findOne({ email }).lean();
+
+    if (!user) {
+        user = await User.create({
+            email,
+            name: name || email.split('@')[0],
+            avatarUrl: image || undefined,
+            xp: 0,
+            level: 1,
+            credits: 100
+        });
+    } else if (name || image) {
+        await User.updateOne(
+            { _id: user._id },
+            {
+                $set: {
+                    ...(name ? { name } : {}),
+                    ...(image ? { avatarUrl: image } : {})
+                }
+            }
+        );
+    }
+
+    return user._id.toString();
+}
+
 export const { auth, signIn, signOut, handlers } = NextAuth({
     ...authConfig,
     providers: [
+        Google({
+            clientId: process.env.GOOGLE_CLIENT_ID!,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        }),
         Credentials({
             async authorize(credentials) {
                 const parsedCredentials = z
@@ -54,7 +89,21 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
 
     ],
     callbacks: {
-        async jwt({ token, user }) {
+        async jwt({ token, user, account }) {
+            if (account?.provider === 'google' && user?.email) {
+                const mongoUserId = await getOrCreateOAuthUser({
+                    email: user.email,
+                    name: user.name,
+                    image: user.image,
+                });
+
+                token.id = mongoUserId;
+                token.picture = user.image;
+                token.name = user.name;
+                token.email = user.email;
+                return token;
+            }
+
             if (user) {
                 token.id = user.id;
                 token.picture = user.image;
