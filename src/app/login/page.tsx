@@ -82,11 +82,13 @@ export default function LoginPage() {
                             </Link>
 
                             <h2 className="mt-10 max-w-xl text-5xl font-black leading-[1.02]">
-                                {isLogin ? 'Welcome Back' : 'Welcome'}
+                                {isLogin ? 'Resume your session.' : 'Get started for free.'}
                             </h2>
                             <div className="mt-8 h-2.5 w-40 rounded-full bg-white/35" />
                             <p className="mt-10 max-w-lg text-4xl leading-relaxed text-white/75">
-                                {isLogin ? 'Sign in to continue to your account' : 'Sign up to create your account'}
+                                {isLogin
+                                    ? 'Enter your details to access your workspace.'
+                                    : 'Set up your profile and upload your first study material.'}
                             </p>
                         </div>
 
@@ -107,12 +109,10 @@ export default function LoginPage() {
                                     </Link>
                                 </div>
                                 <h1 className="text-3xl font-black text-[#111827]">
-                                    {isLogin ? 'Resume your session.' : 'Get started for free.'}
+                                    {isLogin ? 'Sign In' : 'Sign Up'}
                                 </h1>
                                 <p className="mt-2 text-sm font-medium text-gray-500">
-                                    {isLogin
-                                        ? 'Enter your details to access your workspace.'
-                                        : 'Set up your profile and upload your first study material.'}
+                                    {isLogin ? 'Enter your details to continue.' : 'Create your account to continue.'}
                                 </p>
                             </div>
                             <div className="inline-flex rounded-2xl border border-gray-200 bg-gray-50 p-1.5">
