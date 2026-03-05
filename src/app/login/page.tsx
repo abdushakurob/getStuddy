@@ -21,6 +21,13 @@ export default function LoginPage() {
     const [isResending, startResending] = useTransition();
 
     useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('mode') === 'signup' || params.get('signup') === '1') {
+            setIsLogin(false);
+        }
+    }, []);
+
+    useEffect(() => {
         if (resendCooldown <= 0) return;
         const timer = setInterval(() => {
             setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
@@ -61,81 +68,77 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-[#eef3ef] to-[#f8f9fa] selection:bg-[#4C8233] selection:text-white px-4 py-8 md:px-8 md:py-10">
-            <div className="mx-auto w-full max-w-7xl grid gap-7 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="min-h-screen w-full bg-[#0B1220] selection:bg-[#4C8233] selection:text-white">
+            <div className="grid min-h-screen w-full lg:grid-cols-2">
+                <section className="relative hidden lg:flex overflow-hidden border-r border-white/10 bg-[#111827] text-white">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_20%,rgba(76,130,51,0.45),transparent_45%)]" />
+                    <div className="absolute -bottom-24 -left-10 h-80 w-80 rounded-full bg-[#4C8233]/20 blur-3xl" />
 
-                <section className="hidden lg:flex rounded-[36px] bg-[#111827] text-white p-10 xl:p-12 relative overflow-hidden border border-white/10">
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(76,130,51,0.45),transparent_45%)]" />
-                    <div className="absolute -bottom-20 -left-10 w-72 h-72 rounded-full bg-[#4C8233]/20 blur-3xl" />
-
-                    <div className="relative z-10 flex w-full flex-col justify-between">
+                    <div className="relative z-10 flex h-full w-full flex-col justify-between p-12">
                         <div>
-                            <div className="inline-flex items-center gap-3 rounded-2xl bg-white/10 border border-white/20 px-4 py-2.5">
-                                <div className="w-8 h-8 rounded-lg bg-[#4C8233] flex items-center justify-center text-white font-bold text-sm">S</div>
-                                <span className="font-extrabold text-xl tracking-tight">gostuddy</span>
+                            <div className="inline-flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-2.5">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#4C8233] text-sm font-bold">S</div>
+                                <span className="text-xl font-extrabold tracking-tight">gostuddy</span>
                             </div>
 
-                            <h2 className="mt-8 text-4xl xl:text-5xl font-black leading-[1.05] max-w-xl">
-                                Learn with an AI partner that keeps you focused.
+                            <h2 className="mt-10 max-w-xl text-5xl font-black leading-[1.02]">
+                                Full-focus studying with your AI companion.
                             </h2>
-                            <p className="mt-4 text-white/75 text-base max-w-lg leading-relaxed">
-                                Studdy turns scattered materials into guided sessions, with context-aware help, resource navigation, and progress memory.
+                            <p className="mt-5 max-w-lg text-base leading-relaxed text-white/75">
+                                Organize materials, follow guided sessions, and keep momentum with context-aware learning across docs and video.
                             </p>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-3 max-w-xl mt-10">
-                            <div className="rounded-2xl bg-white/10 border border-white/15 p-4">
-                                <p className="text-[11px] uppercase tracking-wide text-white/65">Sessions</p>
-                                <p className="text-sm font-bold mt-1">Structured roadmap</p>
+                        <div className="grid max-w-xl grid-cols-3 gap-3">
+                            <div className="rounded-2xl border border-white/15 bg-white/10 p-4">
+                                <p className="text-[11px] uppercase tracking-wide text-white/60">Study</p>
+                                <p className="mt-1 text-sm font-bold">Planned roadmap</p>
                             </div>
-                            <div className="rounded-2xl bg-white/10 border border-white/15 p-4">
-                                <p className="text-[11px] uppercase tracking-wide text-white/65">Resources</p>
-                                <p className="text-sm font-bold mt-1">PDF + video aware</p>
+                            <div className="rounded-2xl border border-white/15 bg-white/10 p-4">
+                                <p className="text-[11px] uppercase tracking-wide text-white/60">Context</p>
+                                <p className="mt-1 text-sm font-bold">PDF + video aware</p>
                             </div>
-                            <div className="rounded-2xl bg-white/10 border border-white/15 p-4">
-                                <p className="text-[11px] uppercase tracking-wide text-white/65">Flow</p>
-                                <p className="text-sm font-bold mt-1">Chat + action loop</p>
+                            <div className="rounded-2xl border border-white/15 bg-white/10 p-4">
+                                <p className="text-[11px] uppercase tracking-wide text-white/60">Flow</p>
+                                <p className="mt-1 text-sm font-bold">Agentic guidance</p>
                             </div>
                         </div>
                     </div>
                 </section>
 
-                <section className="rounded-[32px] bg-white shadow-2xl shadow-[#4C8233]/10 border border-gray-100 p-6 md:p-8 lg:p-10 relative overflow-hidden">
-                    <div className="absolute -top-20 -right-24 w-56 h-56 bg-[#4C8233]/10 rounded-full blur-3xl pointer-events-none" />
+                <section className="relative flex min-h-screen items-center bg-[#F3F4F6] px-5 py-10 md:px-10 lg:px-14">
+                    <div className="pointer-events-none absolute -top-20 -right-24 h-64 w-64 rounded-full bg-[#4C8233]/15 blur-3xl" />
 
-                    <div className="relative z-10">
-                        <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3 lg:hidden">
-                                <div className="w-9 h-9 rounded-lg bg-[#4C8233] flex items-center justify-center text-white font-bold text-sm">S</div>
-                                <span className="font-extrabold text-xl tracking-tight text-[#2F4F2F]">gostuddy</span>
-                            </div>
-                            <div className="w-full lg:w-auto">
-                                <div className="inline-flex rounded-2xl border border-gray-200 bg-gray-50 p-1.5">
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsLogin(true)}
-                                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${isLogin ? 'bg-white text-[#1F2937] shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
-                                    >
-                                        Log in
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsLogin(false)}
-                                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${!isLogin ? 'bg-white text-[#1F2937] shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
-                                    >
-                                        Sign up
-                                    </button>
+                    <div className="relative z-10 mx-auto w-full max-w-xl rounded-[30px] border border-gray-100 bg-white p-6 shadow-2xl shadow-black/5 md:p-8">
+                        <div className="mb-8 flex items-start justify-between gap-4">
+                            <div>
+                                <div className="mb-4 flex items-center gap-3 lg:hidden">
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#4C8233] text-sm font-bold text-white">S</div>
+                                    <span className="text-xl font-extrabold tracking-tight text-[#2F4F2F]">gostuddy</span>
                                 </div>
+                                <h1 className="text-3xl font-black text-[#111827]">
+                                    {isLogin ? 'Welcome back' : 'Create your account'}
+                                </h1>
+                                <p className="mt-2 text-sm font-medium text-gray-500">
+                                    {isLogin ? 'Sign in to continue your sessions.' : 'Sign up and start your first guided study.'}
+                                </p>
                             </div>
-                        </div>
-
-                        <div className="mt-8 mb-7">
-                            <h1 className="text-3xl font-black text-[#111827]">
-                                {isLogin ? 'Welcome back' : 'Create your account'}
-                            </h1>
-                            <p className="text-gray-500 mt-2 text-sm">
-                                {isLogin ? 'Continue where you left off.' : 'Set up your account and start studying smarter.'}
-                            </p>
+                            <div className="inline-flex rounded-2xl border border-gray-200 bg-gray-50 p-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsLogin(true)}
+                                    className={`rounded-xl px-4 py-2 text-sm font-bold transition-colors ${isLogin ? 'bg-white text-[#1F2937] shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                                >
+                                    Log in
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsLogin(false)}
+                                    className={`rounded-xl px-4 py-2 text-sm font-bold transition-colors ${!isLogin ? 'bg-white text-[#1F2937] shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                                >
+                                    Sign up
+                                </button>
+                            </div>
                         </div>
 
                     <form action={dispatch} className="space-y-4.5">
@@ -235,7 +238,7 @@ export default function LoginPage() {
                         )}
                     </form>
 
-                    <div className="my-5 flex items-center gap-3 text-xs font-bold text-gray-400 uppercase tracking-wide">
+                    <div className="my-5 flex items-center gap-3 text-xs font-bold uppercase tracking-wide text-gray-400">
                         <span className="h-px flex-1 bg-gray-100" />
                         <span>or</span>
                         <span className="h-px flex-1 bg-gray-100" />
