@@ -76,10 +76,10 @@ export default function LoginPage() {
 
                     <div className="relative z-10 flex h-full w-full flex-col justify-between p-12">
                         <div>
-                            <div className="inline-flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-2.5">
+                            <Link href="/" className="inline-flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-2.5 hover:bg-white/15 transition-colors">
                                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/25 text-sm font-bold">S</div>
-                                <span className="text-xl font-extrabold tracking-tight">gostuddy</span>
-                            </div>
+                                <span className="text-xl font-extrabold tracking-tight">goStuddy</span>
+                            </Link>
 
                             <h2 className="mt-10 max-w-xl text-5xl font-black leading-[1.02]">
                                 {isLogin ? 'Welcome Back' : 'Welcome'}
@@ -101,14 +101,18 @@ export default function LoginPage() {
                         <div className="mb-8 flex items-start justify-between gap-4">
                             <div>
                                 <div className="mb-4 flex items-center gap-3 lg:hidden">
-                                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#4C8233] text-sm font-bold text-white">S</div>
-                                    <span className="text-xl font-extrabold tracking-tight text-[#2F4F2F]">gostuddy</span>
+                                    <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
+                                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#4C8233] text-sm font-bold text-white">S</div>
+                                        <span className="text-xl font-extrabold tracking-tight text-[#2F4F2F]">goStuddy</span>
+                                    </Link>
                                 </div>
                                 <h1 className="text-3xl font-black text-[#111827]">
-                                    {isLogin ? 'Sign In' : 'Sign Up'}
+                                    {isLogin ? 'Resume your session.' : 'Get started for free.'}
                                 </h1>
                                 <p className="mt-2 text-sm font-medium text-gray-500">
-                                    {isLogin ? 'Enter your details to continue' : 'Enter your details to create account'}
+                                    {isLogin
+                                        ? 'Enter your details to access your workspace.'
+                                        : 'Set up your profile and upload your first study material.'}
                                 </p>
                             </div>
                             <div className="inline-flex rounded-2xl border border-gray-200 bg-gray-50 p-1.5">
