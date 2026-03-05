@@ -11,13 +11,10 @@ const Hero = () => {
 
       <div className="mx-auto max-w-4xl text-center relative z-10">
         <h1 className="font-heading text-5xl font-extrabold leading-tight tracking-tight text-foreground md:text-7xl">
-          Stop Managing.
-          <br />
-          Start Learning.
+          Meet Your Study Agent.
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground md:text-xl">
-          An AI study companion that guides your study sessions so you can focus purely on
-          understanding. You do the learning. It handles the logistics.
+          A companion that runs your study session from start to finish. It maps out your materials and guards your focus, so you never have to study alone.
         </p>
         <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
           <a href="/signup">
