@@ -122,12 +122,7 @@ export default function LoginPage() {
                                     className="w-full p-3 bg-gray-50 rounded-xl border border-gray-100 focus:outline-none focus:border-[#4C8233] text-sm font-semibold text-[#1F2937] placeholder-gray-400 transition-colors"
                                     required
                                 />
-                                <button
-                                    type="submit"
-                                    className="px-4 py-3 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50"
-                                >
-                                    Resend
-                                </button>
+                                <ResendButton />
                             </div>
                             {resendState.message && (
                                 <p className={`text-xs font-semibold ${resendState.status === 'success' ? 'text-green-700' : 'text-red-600'}`}>
@@ -148,6 +143,19 @@ export default function LoginPage() {
                 </div>
             </div>
         </div>
+    );
+}
+
+function ResendButton() {
+    const { pending } = useFormStatus();
+    return (
+        <button
+            type="submit"
+            disabled={pending}
+            className="px-4 py-3 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[86px]"
+        >
+            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Resend'}
+        </button>
     );
 }
 

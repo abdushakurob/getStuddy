@@ -1,8 +1,10 @@
 'use client';
 
 import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { AuthActionState, requestPasswordReset } from '@/lib/actions';
+import { Loader2 } from 'lucide-react';
 
 export default function ForgotPasswordPage() {
     const [state, action] = useActionState<AuthActionState, FormData>(requestPasswordReset, { status: 'idle' });
@@ -25,12 +27,7 @@ export default function ForgotPasswordPage() {
                         />
                     </div>
 
-                    <button
-                        type="submit"
-                        className="w-full py-3.5 bg-[#4C8233] text-white rounded-2xl font-bold hover:bg-[#3D6A29] transition-colors"
-                    >
-                        Send reset link
-                    </button>
+                    <ForgotPasswordSubmitButton />
                 </form>
 
                 {state.message && (
@@ -44,5 +41,20 @@ export default function ForgotPasswordPage() {
                 </div>
             </div>
         </div>
+    );
+}
+
+function ForgotPasswordSubmitButton() {
+    const { pending } = useFormStatus();
+
+    return (
+        <button
+            type="submit"
+            disabled={pending}
+            className="w-full py-3.5 bg-[#4C8233] text-white rounded-2xl font-bold hover:bg-[#3D6A29] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {pending ? 'Sending...' : 'Send reset link'}
+        </button>
     );
 }

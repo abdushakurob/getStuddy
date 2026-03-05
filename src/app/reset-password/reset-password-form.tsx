@@ -1,8 +1,10 @@
 'use client';
 
 import { useActionState } from 'react';
+import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { AuthActionState, resetPasswordWithToken } from '@/lib/actions';
+import { Loader2 } from 'lucide-react';
 
 type ResetPasswordFormProps = {
     token: string;
@@ -42,12 +44,7 @@ export default function ResetPasswordForm({ token }: ResetPasswordFormProps) {
                         />
                     </div>
 
-                    <button
-                        type="submit"
-                        className="w-full py-3.5 bg-[#4C8233] text-white rounded-2xl font-bold hover:bg-[#3D6A29] transition-colors"
-                    >
-                        Reset password
-                    </button>
+                    <ResetPasswordSubmitButton />
                 </form>
 
                 {state.message && (
@@ -61,5 +58,20 @@ export default function ResetPasswordForm({ token }: ResetPasswordFormProps) {
                 </div>
             </div>
         </div>
+    );
+}
+
+function ResetPasswordSubmitButton() {
+    const { pending } = useFormStatus();
+
+    return (
+        <button
+            type="submit"
+            disabled={pending}
+            className="w-full py-3.5 bg-[#4C8233] text-white rounded-2xl font-bold hover:bg-[#3D6A29] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        >
+            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {pending ? 'Resetting...' : 'Reset password'}
+        </button>
     );
 }
