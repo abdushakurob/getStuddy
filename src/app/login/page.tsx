@@ -68,40 +68,33 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen w-full bg-[#0B1220] selection:bg-[#4C8233] selection:text-white">
+        <div className="min-h-screen w-full bg-[#F3F4F6] selection:bg-[#4C8233] selection:text-white">
             <div className="grid min-h-screen w-full lg:grid-cols-2">
-                <section className="relative hidden lg:flex overflow-hidden border-r border-white/10 bg-[#111827] text-white">
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_20%,rgba(76,130,51,0.45),transparent_45%)]" />
+                <section className="relative hidden lg:flex overflow-hidden border-r border-[#3D6A29]/20 bg-gradient-to-br from-[#2F4F2F] to-[#4C8233] text-white">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_20%,rgba(255,255,255,0.18),transparent_45%)]" />
                     <div className="absolute -bottom-24 -left-10 h-80 w-80 rounded-full bg-[#4C8233]/20 blur-3xl" />
 
                     <div className="relative z-10 flex h-full w-full flex-col justify-between p-12">
                         <div>
                             <div className="inline-flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-2.5">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#4C8233] text-sm font-bold">S</div>
+                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/25 text-sm font-bold">S</div>
                                 <span className="text-xl font-extrabold tracking-tight">gostuddy</span>
                             </div>
 
                             <h2 className="mt-10 max-w-xl text-5xl font-black leading-[1.02]">
-                                Study with clarity, not chaos.
+                                {isLogin ? 'Welcome Back' : 'Welcome'}
                             </h2>
-                            <p className="mt-5 max-w-lg text-base leading-relaxed text-white/75">
-                                One focused place to learn from your materials with guidance that keeps you moving.
+                            <div className="mt-8 h-2.5 w-40 rounded-full bg-white/35" />
+                            <p className="mt-10 max-w-lg text-4xl leading-relaxed text-white/75">
+                                {isLogin ? 'Sign in to continue to your account' : 'Sign up to create your account'}
                             </p>
                         </div>
 
-                        <div className="max-w-xl rounded-3xl border border-white/15 bg-white/10 p-6 backdrop-blur-sm">
-                            <p className="text-2xl leading-relaxed font-semibold text-white/95">
-                                “Studdy helped me stop jumping between tabs and actually finish a full study session.”
-                            </p>
-                            <div className="mt-4 h-px w-full bg-white/15" />
-                            <p className="mt-4 text-sm text-white/70">
-                                — A focused student, preparing for finals
-                            </p>
-                        </div>
+                        <div />
                     </div>
                 </section>
 
-                <section className="relative flex min-h-screen items-center bg-[#F3F4F6] px-5 py-10 md:px-10 lg:px-14">
+                <section className="relative flex min-h-screen items-center bg-[#F8F9FA] px-5 py-10 md:px-10 lg:px-14">
                     <div className="pointer-events-none absolute -top-20 -right-24 h-64 w-64 rounded-full bg-[#4C8233]/15 blur-3xl" />
 
                     <div className="relative z-10 mx-auto w-full max-w-xl rounded-[30px] border border-gray-100 bg-white p-6 shadow-2xl shadow-black/5 md:p-8">
@@ -112,10 +105,10 @@ export default function LoginPage() {
                                     <span className="text-xl font-extrabold tracking-tight text-[#2F4F2F]">gostuddy</span>
                                 </div>
                                 <h1 className="text-3xl font-black text-[#111827]">
-                                    {isLogin ? 'Welcome back' : 'Create your account'}
+                                    {isLogin ? 'Sign In' : 'Sign Up'}
                                 </h1>
                                 <p className="mt-2 text-sm font-medium text-gray-500">
-                                    {isLogin ? 'Sign in to continue your sessions.' : 'Sign up and start your first guided study.'}
+                                    {isLogin ? 'Enter your details to continue' : 'Enter your details to create account'}
                                 </p>
                             </div>
                             <div className="inline-flex rounded-2xl border border-gray-200 bg-gray-50 p-1.5">
@@ -124,14 +117,14 @@ export default function LoginPage() {
                                     onClick={() => setIsLogin(true)}
                                     className={`rounded-xl px-4 py-2 text-sm font-bold transition-colors ${isLogin ? 'bg-white text-[#1F2937] shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
                                 >
-                                    Log in
+                                    SIGN IN
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setIsLogin(false)}
                                     className={`rounded-xl px-4 py-2 text-sm font-bold transition-colors ${!isLogin ? 'bg-white text-[#1F2937] shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
                                 >
-                                    Sign up
+                                    SIGN UP
                                 </button>
                             </div>
                         </div>
@@ -145,7 +138,7 @@ export default function LoginPage() {
                                     <input
                                         name="name"
                                         type="text"
-                                        placeholder="e.g. Alex Smith"
+                                        placeholder="Enter your name"
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
                                         className="w-full p-4 bg-gray-50 rounded-2xl border border-gray-100 focus:outline-none focus:border-[#4C8233] font-bold text-[#1F2937] placeholder-gray-400 transition-colors"
@@ -160,7 +153,7 @@ export default function LoginPage() {
                             <input
                                 name="email"
                                 type="email"
-                                placeholder="student@example.com"
+                                placeholder="Enter your email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 className="w-full p-4 bg-gray-50 rounded-2xl border border-gray-100 focus:outline-none focus:border-[#4C8233] font-bold text-[#1F2937] placeholder-gray-400 transition-colors"
@@ -174,7 +167,7 @@ export default function LoginPage() {
                                 <input
                                     name="password"
                                     type={showPassword ? 'text' : 'password'}
-                                    placeholder="••••••••"
+                                    placeholder="Enter your password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     className="w-full p-4 pr-12 bg-gray-50 rounded-2xl border border-gray-100 focus:outline-none focus:border-[#4C8233] font-bold text-[#1F2937] placeholder-gray-400 transition-colors"
@@ -193,7 +186,7 @@ export default function LoginPage() {
                         </div>
 
                         <div className="pt-4">
-                            <LoginButton label={isLogin ? 'Access Dashboard' : 'Start Learning'} />
+                            <LoginButton label={isLogin ? 'Sign in' : 'Sign up'} />
                         </div>
 
                         {authState.message && (
@@ -227,7 +220,7 @@ export default function LoginPage() {
                         {isLogin && (
                             <div className="flex items-center justify-between text-xs pt-1">
                                 <Link href="/forgot-password" className="font-bold text-gray-500 hover:text-[#4C8233] transition-colors">
-                                    Forgot password?
+                                    Forgot Password?
                                 </Link>
                             </div>
                         )}
@@ -246,7 +239,7 @@ export default function LoginPage() {
                         className="w-full py-3.5 bg-white text-[#1F2937] rounded-2xl font-bold border border-gray-200 hover:bg-gray-50 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {googlePending ? <Loader2 className="animate-spin" /> : <span className="text-base">G</span>}
-                        Continue with Google
+                        Sign in with Google
                     </button>
 
                     <div className="mt-6 text-center lg:hidden">
