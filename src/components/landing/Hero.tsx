@@ -24,7 +24,7 @@ const Hero = () => {
             </Button>
           </a>
           <a href="#how-it-works">
-            <Button variant="outline" size="lg" className="px-8 backdrop-blur-sm bg-background/50 hover:bg-background/80">
+            <Button variant="outline" size="lg" className="px-8 backdrop-blur-sm bg-background/50 hover:bg-black/50">
               See How It Works
             </Button>
           </a>
